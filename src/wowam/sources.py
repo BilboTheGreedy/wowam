@@ -1,5 +1,6 @@
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from urllib.parse import quote, quote_plus
 
@@ -317,7 +318,13 @@ def latest(ref, client, cfg, channel="stable"):
     return release
 
 
-def _result(ref, name, author="", version="", downloads=0, summary="", compatible=True, page="", dirs=()):
+def _listed(flavors, client):
+    if not flavors:
+        return "unknown"
+    return "yes" if client.flavor in flavors else "no"
+
+
+def _result(ref, name, author="", version="", downloads=0, summary="", listed="unknown", page="", dirs=()):
     return {
         "ref": ref,
         "name": name,
@@ -325,7 +332,7 @@ def _result(ref, name, author="", version="", downloads=0, summary="", compatibl
         "version": version,
         "downloads": downloads,
         "summary": summary,
-        "compatible": compatible,
+        "listed": listed,
         "page": page or page_of(ref),
         "source": label(ref),
         "dirs": list(dirs),
@@ -348,7 +355,7 @@ def _search_wowi(words, client):
                 str(x.get("UIVersion", "")),
                 int(x.get("UIDownloadMonthly") or 0),
                 "",
-                not flavors or client.flavor in flavors,
+                _listed(flavors, client),
                 x.get("UIFileInfoURL", ""),
                 x.get("UIDir") or (),
             )
@@ -375,7 +382,7 @@ def _search_tukui(words, client):
                 str(x.get("version", "")),
                 10**9,
                 x.get("small_desc", ""),
-                not flavors or client.flavor in flavors,
+                _listed(flavors, client),
                 x.get("web_url", ""),
                 x.get("directories") or (),
             )
@@ -410,8 +417,53 @@ def _search_wago(query, client, cfg):
                 "",
                 int(x.get("download_count") or 0),
                 x.get("summary", ""),
-                True,
+                "yes",
                 x.get("website_url", ""),
+            )
+        )
+    return out
+
+
+def _gh_manifest(full_name):
+    try:
+        data = http.get_json(f"https://github.com/{full_name}/releases/latest/download/release.json", max_age=3600)
+    except HttpError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _search_github(query, client, cfg, top=8):
+    url = (
+        "https://api.github.com/search/repositories?q="
+        + quote_plus(f"{query} in:name language:lua")
+        + f"&sort=stars&per_page={top}"
+    )
+    try:
+        data = http.get_json(url, _gh_headers(cfg), max_age=900)
+    except HttpError:
+        return []
+    repos = [r for r in (data.get("items") or []) if r.get("full_name")][:top]
+    if not repos:
+        return []
+    with ThreadPoolExecutor(max_workers=top) as pool:
+        manifests = list(pool.map(lambda r: _gh_manifest(r["full_name"]), repos))
+    out = []
+    for repo, manifest in zip(repos, manifests):
+        if not manifest:
+            continue
+        entries = [e for e in manifest.get("releases", []) if not e.get("nolib")]
+        flavors = {m.get("flavor") for e in entries for m in e.get("metadata", [])}
+        version = next((str(e.get("version", "")) for e in entries), "")
+        out.append(
+            _result(
+                f"gh:{repo['full_name']}",
+                repo.get("name", ""),
+                (repo.get("owner") or {}).get("login", ""),
+                version,
+                int(repo.get("stargazers_count") or 0),
+                repo.get("description") or "",
+                _listed(flavors, client),
+                repo.get("html_url", ""),
             )
         )
     return out
@@ -425,9 +477,15 @@ def search(query, client, cfg, limit=60):
     if direct:
         release = latest(direct, client, cfg)
         name = release.name or split_ref(direct)[1].split("/")[-1]
-        return [_result(direct, name, release.author, release.version, 0, "", True, release.page)]
+        return [_result(direct, name, release.author, release.version, 0, "", "direct", release.page)]
     words = query.lower().split()
-    results = _search_tukui(words, client) + _search_wago(query, client, cfg) + _search_wowi(words, client)
+    results = (
+        _search_tukui(words, client)
+        + _search_github(query, client, cfg)
+        + _search_wago(query, client, cfg)
+        + _search_wowi(words, client)
+    )
     exact = query.lower()
-    results.sort(key=lambda r: (r["name"].lower() != exact, -r["downloads"]))
+    rank = {"yes": 0, "direct": 0, "unknown": 1, "no": 2}
+    results.sort(key=lambda r: (r["name"].lower() != exact, rank.get(r["listed"], 1), -r["downloads"]))
     return results[:limit]

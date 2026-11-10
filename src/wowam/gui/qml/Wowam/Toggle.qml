@@ -4,6 +4,14 @@ import Wowam
 
 Switch {
     id: root
+    property bool value: false
+    signal requested(bool on)
+    checked: value
+    onToggled: {
+        var want = checked
+        checked = Qt.binding(function() { return root.value })
+        root.requested(want)
+    }
     implicitWidth: 42
     implicitHeight: 24
     padding: 0

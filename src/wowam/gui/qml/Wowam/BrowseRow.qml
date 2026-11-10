@@ -11,7 +11,7 @@ Rectangle {
     required property string version
     required property string source
     required property string summary
-    required property bool compatible
+    required property string listed
     required property string page
     required property bool installed
     required property bool busy
@@ -73,11 +73,22 @@ Rectangle {
             }
         }
 
-        Text {
-            visible: !root.compatible && !root.installed && root.width > 640
-            text: "Not listed for " + backend.clientLabel
-            color: Theme.warn
-            font.pixelSize: Theme.small
+        Row {
+            visible: (root.listed === "yes" || root.listed === "no") && !root.installed && root.width > 640
+            spacing: 5
+            Icon {
+                visible: root.listed === "yes"
+                shape: "check"
+                size: 14
+                color: Theme.ok
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: (root.listed === "yes" ? "Listed for " : "Not listed for ") + backend.clientLabel
+                color: root.listed === "yes" ? Theme.ok : Theme.warn
+                font.pixelSize: Theme.small
+                anchors.verticalCenter: parent.verticalCenter
+            }
         }
 
         Rectangle {

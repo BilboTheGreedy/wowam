@@ -247,6 +247,30 @@ Item {
                             onClicked: { debounce.stop(); backend.search(browseField.text) }
                         }
                     }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 12
+                        spacing: 10
+                        Toggle {
+                            id: listedToggle
+                            value: backend.listedOnly
+                            Accessible.name: "Only addons listed for " + backend.clientLabel
+                            onRequested: (on) => backend.setListedOnly(on)
+                        }
+                        Text {
+                            text: "Only addons listed for " + backend.clientLabel
+                            color: Theme.text
+                            font.pixelSize: Theme.body
+                            TapHandler { onTapped: backend.setListedOnly(!backend.listedOnly) }
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            visible: backend.hiddenResults > 0
+                            text: backend.hiddenResults + (backend.hiddenResults === 1 ? " result hidden" : " results hidden")
+                            color: Theme.sub
+                            font.pixelSize: Theme.small
+                        }
+                    }
                     Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -267,13 +291,20 @@ Item {
                             visible: results.count === 0 && !backend.searching && !backend.searched
                             iconName: "globe"
                             heading: "Add an addon to " + backend.clientLabel
-                            detail: "Search covers WoWInterface and Tukui" + (backend.wagoKey ? ", plus Wago Addons." : ".") + " Addons hosted on GitHub install from their link, for example github.com/BigWigsMods/BigWigs."
+                            detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", plus Wago Addons." : ".") + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
                         }
                         Empty {
-                            visible: results.count === 0 && !backend.searching && backend.searched
+                            visible: results.count === 0 && !backend.searching && backend.searched && backend.hiddenResults === 0
                             iconName: "search"
                             heading: "No addons found"
                             detail: "Try a shorter name, or paste the addon's GitHub link."
+                        }
+                        Empty {
+                            visible: results.count === 0 && !backend.searching && backend.searched && backend.hiddenResults > 0
+                            iconName: "search"
+                            heading: "Nothing is listed for " + backend.clientLabel
+                            detail: backend.hiddenResults + (backend.hiddenResults === 1 ? " result is" : " results are") + " hidden because the author has not marked " + (backend.hiddenResults === 1 ? "it" : "them") + " as working with " + backend.clientLabel + "."
+                            Btn { text: "Show all results"; onClicked: backend.setListedOnly(false) }
                         }
                         Row {
                             visible: backend.searching && results.count === 0

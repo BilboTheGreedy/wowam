@@ -40,6 +40,24 @@ def make_icon():
 PATTERN = re.compile(r"^(lib)?Qt6?(" + "|".join(DROP) + ")")
 
 
+HOST_LIBS = re.compile(
+    r"^lib(stdc\+\+|gcc_s|gbm|drm|fontconfig|freetype|X|xcb(?!-cursor)|xkb|gtk|gdk|atk|atspi|cairo|pango|epoxy"
+    r"|harfbuzz|wayland|EGL|GL|glapi|asound|nss|nspr|smime|plc|plds|thai|datrie|fribidi|graphite|pixman)"
+)
+
+
+def prune_host_libs(folder):
+    removed = 0
+    for path in folder.rglob("*"):
+        if path.is_dir():
+            continue
+        top = path.parent.name == "_internal" and HOST_LIBS.match(path.name)
+        if top or path.name == "libqgtk3.so":
+            path.unlink()
+            removed += 1
+    return removed
+
+
 def prune(folder):
     removed = 0
     for path in sorted(folder.rglob("*"), key=lambda p: len(p.parts), reverse=True):
@@ -87,6 +105,8 @@ def main():
     app = DIST / ("wowam.app" if MAC else "wowam")
     before = size_mb(app)
     removed = prune(app)
+    if not WIN and not MAC:
+        removed += prune_host_libs(app)
     print(f"pruned {removed} items, {before:.0f} MB -> {size_mb(app):.0f} MB")
     if MAC:
         subprocess.run(["codesign", "--force", "--deep", "-s", "-", str(app)], check=True)

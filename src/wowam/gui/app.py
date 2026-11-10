@@ -23,7 +23,7 @@ ADDON_ROLES = [
 ]
 CLIENT_ROLES = ["key", "label", "location", "version", "updates"]
 BROWSE_ROLES = [
-    "key", "name", "author", "version", "source", "summary", "compatible", "page", "installed", "busy", "progress",
+    "key", "name", "author", "version", "source", "summary", "listed", "page", "installed", "busy", "progress",
 ]
 
 
@@ -131,6 +131,7 @@ class Backend(QObject):
         self._updating = False
         self._update_progress = 0.0
         self._auto_done = set()
+        self._found = []
         self._addons = ListModel(ADDON_ROLES, self)
         self._clients_model = ListModel(CLIENT_ROLES, self)
         self._browse = ListModel(BROWSE_ROLES, self)
@@ -426,8 +427,9 @@ class Backend(QObject):
 
     def _refresh_browse_flags(self, mgr):
         refs = set(mgr.refs())
-        for row in list(self._browse.rows()):
+        for row in self._found:
             if row["key"] in refs and not row["installed"]:
+                row["installed"] = True
                 self._browse.patch(row["key"], installed=True)
 
     def _progress_cb(self, gen, key, model=None):
@@ -644,6 +646,7 @@ class Backend(QObject):
         if 0 <= i < len(self._clients) and i != self._index:
             self._index = i
             self.cfg.set("last_client", self._clients[i].id)
+            self._found = []
             self._browse.sync([])
             self._searched = False
             self.browseChanged.emit()
@@ -659,6 +662,7 @@ class Backend(QObject):
         self._search_gen += 1
         gen = self._search_gen
         if not client or not text:
+            self._found = []
             self._browse.sync([])
             self._searching = False
             self._searched = False
@@ -694,17 +698,44 @@ class Backend(QObject):
                             "version": r["version"],
                             "source": r["source"],
                             "summary": r["summary"],
-                            "compatible": r["compatible"],
+                            "listed": r["listed"],
                             "page": r["page"],
                             "installed": r["ref"] in refs or bool(r["dirs"] and set(r["dirs"]) <= present),
                             "busy": False,
                             "progress": 0.0,
                         }
                     )
-            self._browse.sync(rows)
-            self.browseChanged.emit()
+            self._found = rows
+            self._show_found()
 
         self._bg(work, done)
+
+    def _listed_only(self):
+        choice = self.cfg.get("browse_listed")
+        if choice in ("on", "off"):
+            return choice == "on"
+        client = self._client()
+        return bool(client and client.flavor != "mainline")
+
+    def _show_found(self):
+        rows = self._found
+        if self._listed_only():
+            rows = [r for r in rows if r["listed"] in ("yes", "direct")]
+        self._browse.sync(rows)
+        self.browseChanged.emit()
+
+    @Slot(bool)
+    def setListedOnly(self, on):
+        self.cfg.set("browse_listed", "on" if on else "off")
+        self._show_found()
+
+    @Property(bool, notify=browseChanged)
+    def listedOnly(self):
+        return self._listed_only()
+
+    @Property(int, notify=browseChanged)
+    def hiddenResults(self):
+        return len(self._found) - self._browse.count
 
     def _install(self, ref, quiet=False):
         client = self._client()

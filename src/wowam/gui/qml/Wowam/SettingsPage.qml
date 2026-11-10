@@ -85,27 +85,27 @@ Item {
                 title: "Automatic"
                 Line {
                     label: "Start wowam when I log in"
-                    Toggle { checked: backend.autostart; Accessible.name: "Start wowam when I log in"; onToggled: backend.setAutostart(checked) }
+                    Toggle { value: backend.autostart; Accessible.name: "Start wowam when I log in"; onRequested: (on) => backend.setAutostart(on) }
                 }
                 Line {
                     label: "Update addons when wowam opens"
                     detail: "Installs every available update for all your installs as soon as the window opens. Pinned addons and ones you changed are left alone."
-                    Toggle { checked: backend.updateOnStart; Accessible.name: "Update addons when wowam opens"; onToggled: backend.setUpdateOnStart(checked) }
+                    Toggle { value: backend.updateOnStart; Accessible.name: "Update addons when wowam opens"; onRequested: (on) => backend.setUpdateOnStart(on) }
                 }
                 Line {
                     label: "Update addons in the background"
                     detail: "Checks every six hours while you are logged in and shows a notification when something was updated."
-                    Toggle { checked: backend.timer; Accessible.name: "Update addons in the background"; onToggled: backend.setTimer(checked) }
+                    Toggle { value: backend.timer; Accessible.name: "Update addons in the background"; onRequested: (on) => backend.setTimer(on) }
                 }
                 Line {
                     label: "Show wowam in the app launcher"
                     detail: "Also lets install links on the Wago Addons website open here."
-                    Toggle { checked: backend.launcher; Accessible.name: "Show wowam in the app launcher"; onToggled: backend.setLauncher(checked) }
+                    Toggle { value: backend.launcher; Accessible.name: "Show wowam in the app launcher"; onRequested: (on) => backend.setLauncher(on) }
                 }
                 Line {
                     label: "Tell me about new wowam versions"
                     detail: "Checks the wowam page on GitHub when the window opens."
-                    Toggle { checked: backend.checkUpdates; Accessible.name: "Tell me about new wowam versions"; onToggled: backend.setCheckUpdates(checked) }
+                    Toggle { value: backend.checkUpdates; Accessible.name: "Tell me about new wowam versions"; onRequested: (on) => backend.setCheckUpdates(on) }
                 }
             }
 
@@ -114,7 +114,7 @@ Item {
                 hint: "A backup is a copy of the WTF folder, where the game keeps your addon settings, keybinds and macros."
                 Line {
                     label: "Back up before updating"
-                    Toggle { checked: backend.backupOnUpdate; Accessible.name: "Back up before updating"; onToggled: backend.setBackupOnUpdate(checked) }
+                    Toggle { value: backend.backupOnUpdate; Accessible.name: "Back up before updating"; onRequested: (on) => backend.setBackupOnUpdate(on) }
                 }
                 Line {
                     label: "Backups to keep"
