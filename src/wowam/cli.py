@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from . import __version__, backup, desktop
+from . import __version__, backup, desktop, selfupdate
 from .clients import discover
 from .config import Config
 from .manager import Manager, can_auto_update, needs_update, parse_refs, survey
@@ -211,6 +211,22 @@ def cmd_timer(args, cfg):
         desktop.disable_timer()
 
 
+def cmd_self_update(args, cfg):
+    info = selfupdate.check()
+    if not info:
+        print(f"wowam {__version__} is the newest version")
+        return 0
+    if not info["url"]:
+        print(f"wowam {info['version']} is out: {info['page']}")
+        return 0
+    try:
+        selfupdate.install(info, relaunch=False)
+    except selfupdate.UpdateError as e:
+        sys.exit(str(e))
+    print(f"updated to wowam {info['version']}")
+    return 0
+
+
 def cmd_gui(args, cfg):
     from .gui.app import run
 
@@ -250,6 +266,7 @@ def build_parser():
     add("export", cmd_export, "print the addon list")
     add("import", cmd_import, "install an exported addon list").add_argument("refs", nargs="+")
     add("auto", cmd_auto, "update everything quietly", client=False)
+    add("self-update", cmd_self_update, "update wowam itself", client=False)
     add("add-path", cmd_add_path, "add a WoW folder", client=False).add_argument("path")
     add("desktop", cmd_desktop, "app launcher entry", client=False).add_argument("action", choices=["install", "remove"])
     add("timer", cmd_timer, "background updates", client=False).add_argument("action", choices=["on", "off"])

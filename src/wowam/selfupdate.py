@@ -98,7 +98,7 @@ def cleanup():
     shutil.rmtree(cache_dir() / "update", ignore_errors=True)
 
 
-def install(info, progress=None):
+def install(info, progress=None, relaunch=True):
     url = info.get("url", "")
     which = kind()
     if not url or which not in ASSETS:
@@ -120,4 +120,5 @@ def install(info, progress=None):
         return
     exe = Path(sys.executable).resolve()
     swap(target, exe.parent, exe.name)
-    subprocess.Popen([str(exe)], start_new_session=True, close_fds=True)
+    if relaunch:
+        subprocess.Popen([str(exe)], start_new_session=True, close_fds=True)

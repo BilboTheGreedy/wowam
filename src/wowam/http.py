@@ -62,8 +62,11 @@ def get_json(url, headers=None, etag=False, max_age=0, timeout=30):
             body = resp.read()
             tag = resp.headers.get("ETag", "")
     except HttpError as e:
-        if e.status == 304:
-            return json.loads(body_path.read_bytes())
+        if e.status == 304 or (etag and e.status in (403, 429) and body_path.exists()):
+            try:
+                return json.loads(body_path.read_bytes())
+            except (OSError, ValueError):
+                pass
         raise
     try:
         parsed = json.loads(body)
