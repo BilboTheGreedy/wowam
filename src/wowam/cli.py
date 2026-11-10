@@ -258,6 +258,9 @@ def build_parser():
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     cfg = Config()
     if not argv:
         return cmd_gui(argparse.Namespace(uri=""), cfg) or 0

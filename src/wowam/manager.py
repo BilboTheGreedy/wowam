@@ -282,7 +282,7 @@ class Manager:
             with self.lock:
                 self.state.load()
                 owned = {d for rec in self.state.addons.values() for d in rec.get("dirs", [])}
-            more = [d for d in extra_dirs if d not in addon.dirs and d not in owned and "/" not in d]
+            more = [d for d in extra_dirs if d not in addon.dirs and d not in owned and "/" not in d and "\\" not in d]
             addon = replace(addon, dirs=sorted(set(addon.dirs) | set(more)))
         self.adopt(addon, ref, release)
         return release
@@ -356,7 +356,7 @@ class Manager:
         with self.lock:
             if not keep_files:
                 for d in addon.dirs:
-                    if "/" in d or d in ("", ".", ".."):
+                    if "/" in d or "\\" in d or d in ("", ".", ".."):
                         continue
                     installer.remove(self.client.addons_dir / d)
             if addon.managed:

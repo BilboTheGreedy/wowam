@@ -1,5 +1,7 @@
 import hashlib
 import re
+import string
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -93,7 +95,7 @@ class Client:
         for i, part in enumerate(parts):
             if part == "drive_c" and i > 0:
                 return parts[i - 1] if parts[i - 1] != "pfx" else "/".join(parts[max(0, i - 2):i])
-        return root.name
+        return str(root.parent)
 
 
 def interface_of(version):
@@ -168,9 +170,15 @@ def is_client_dir(path):
     if (path / ".flavor.info").exists():
         return True
     try:
-        return any(p.name.lower().startswith("wow") and p.suffix.lower() == ".exe" for p in path.iterdir())
+        for p in path.iterdir():
+            name = p.name.lower()
+            if name.startswith("wow") and name.endswith(".exe"):
+                return True
+            if name.startswith("world of warcraft") and name.endswith(".app"):
+                return True
     except OSError:
-        return False
+        pass
+    return False
 
 
 def clients_in(root):
@@ -223,6 +231,42 @@ def candidate_roots(home):
             yield drive / sub
 
 
+def registry_roots():
+    out = []
+    try:
+        import winreg
+    except ImportError:
+        return out
+    for sub in (
+        r"SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft",
+        r"SOFTWARE\Blizzard Entertainment\World of Warcraft",
+    ):
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, sub) as key:
+                value, _ = winreg.QueryValueEx(key, "InstallPath")
+        except OSError:
+            continue
+        if value:
+            out.extend(roots_for(str(value).rstrip("\\/")))
+    return out
+
+
+def native_roots():
+    out = []
+    if sys.platform == "win32":
+        out.extend(registry_roots())
+        for letter in string.ascii_uppercase[2:]:
+            drive = Path(f"{letter}:\\")
+            if not drive.exists():
+                continue
+            for sub in WOW_DIRS:
+                out.append(drive / sub)
+    elif sys.platform == "darwin":
+        out.append(Path("/Applications/World of Warcraft"))
+        out.append(Path.home() / "Applications" / "World of Warcraft")
+    return out
+
+
 def roots_for(path):
     path = Path(path).expanduser()
     if is_client_dir(path):
@@ -235,10 +279,13 @@ def roots_for(path):
 
 
 def discover(extra_paths=(), home=None):
+    native = home is None
     home = Path(home) if home else Path.home()
     seen = set()
     clients = []
     roots = list(candidate_roots(home))
+    if native:
+        roots.extend(native_roots())
     for extra in extra_paths:
         roots.extend(roots_for(extra))
     for root in roots:

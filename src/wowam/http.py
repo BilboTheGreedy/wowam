@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -9,6 +10,17 @@ from . import __version__
 from .paths import cache_dir
 
 UA = f"wowam/{__version__}"
+
+
+def _context():
+    try:
+        import certifi
+    except ImportError:
+        return None
+    return ssl.create_default_context(cafile=certifi.where())
+
+
+CONTEXT = _context()
 
 
 class HttpError(Exception):
@@ -26,7 +38,7 @@ def _cache_path(url, kind):
 def _request(url, headers=None, data=None, timeout=30):
     req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, **(headers or {})})
     try:
-        return urllib.request.urlopen(req, timeout=timeout)
+        return urllib.request.urlopen(req, timeout=timeout, context=CONTEXT)
     except urllib.error.HTTPError as e:
         raise HttpError(e.code, f"HTTP {e.code} from {urllib.request.urlparse(url).netloc}", dict(e.headers)) from e
     except (urllib.error.URLError, OSError) as e:

@@ -292,7 +292,7 @@ Item {
         visible: !backend.hasClient
         iconName: "folder"
         heading: "No World of Warcraft install found"
-        detail: "wowam looks in Lutris, Wine, Bottles and Steam folders. If your game lives somewhere else, point to its folder."
+        detail: "wowam looks in the usual install locations. If your game lives somewhere else, point to its folder."
         Btn { text: "Add WoW folder"; kind: "primary"; iconName: "plus"; onClicked: root.addFolderRequested() }
     }
 

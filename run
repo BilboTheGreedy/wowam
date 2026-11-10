@@ -1,3 +1,6 @@
 #!/bin/sh
-here="$(dirname "$(readlink -f "$0")")"
-PYTHONPATH="$here/src${PYTHONPATH:+:$PYTHONPATH}" exec /usr/bin/python3 -m wowam "$@"
+here="$(cd "$(dirname "$0")" && pwd -P)"
+if [ "$(uname)" = Linux ] && [ -x /usr/bin/python3 ]; then
+    exec /usr/bin/python3 "$here/run.py" "$@"
+fi
+exec python3 "$here/run.py" "$@"

@@ -31,12 +31,58 @@ ApplicationWindow {
             onAddClicked: folderDialog.open()
         }
 
-        StackLayout {
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: window.settingsOpen ? 1 : 0
-            AddonsPage { id: addonsPage; onAddFolderRequested: folderDialog.open() }
-            SettingsPage { onAddFolderRequested: folderDialog.open() }
+            spacing: 0
+
+            Rectangle {
+                visible: backend.updateVersion !== ""
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+                color: Theme.accentSoft
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 28
+                    anchors.rightMargin: 16
+                    spacing: 12
+                    Icon { shape: "download"; size: 17; color: Theme.accentText }
+                    Text {
+                        Layout.fillWidth: true
+                        text: backend.updating
+                            ? "Downloading wowam " + backend.updateVersion + "  ·  " + Math.round(backend.updateProgress * 100) + "%"
+                            : "wowam " + backend.updateVersion + " is available. You have " + backend.version + "."
+                        color: Theme.text
+                        font.pixelSize: Theme.body
+                        font.weight: Font.Medium
+                        elide: Text.ElideRight
+                    }
+                    Btn {
+                        visible: !backend.updating
+                        kind: "primary"
+                        implicitHeight: 30
+                        text: backend.updateInstallable ? "Update and restart" : "Open download page"
+                        onClicked: backend.installUpdate()
+                    }
+                    IconBtn {
+                        visible: !backend.updating
+                        iconName: "close"
+                        tip: "Not now"
+                        implicitWidth: 30
+                        implicitHeight: 30
+                        Accessible.name: "Dismiss update notice"
+                        onClicked: backend.dismissUpdate()
+                    }
+                }
+            }
+
+            StackLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: window.settingsOpen ? 1 : 0
+                AddonsPage { id: addonsPage; onAddFolderRequested: folderDialog.open() }
+                SettingsPage { onAddFolderRequested: folderDialog.open() }
+            }
         }
     }
 

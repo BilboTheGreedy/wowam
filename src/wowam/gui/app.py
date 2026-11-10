@@ -4,11 +4,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PySide6.QtCore import Property, QAbstractListModel, QModelIndex, QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QAbstractListModel, QEvent, QModelIndex, QObject, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 
-from .. import __version__, backup, desktop, sources
+from .. import __version__, backup, desktop, selfupdate, sources
+from ..cli import update_client
 from ..clients import discover
 from ..config import Config
 from ..manager import Manager, can_auto_update, check_one, needs_update, parse_refs, survey
@@ -107,6 +108,7 @@ class Backend(QObject):
     orphansChanged = Signal()
     browseChanged = Signal()
     showBrowse = Signal(str)
+    updateChanged = Signal()
 
     def __init__(self, uri=""):
         super().__init__()
@@ -125,6 +127,10 @@ class Backend(QObject):
         self._search_gen = 0
         self._searched = False
         self._orphans = None
+        self._update = None
+        self._updating = False
+        self._update_progress = 0.0
+        self._auto_done = set()
         self._addons = ListModel(ADDON_ROLES, self)
         self._clients_model = ListModel(CLIENT_ROLES, self)
         self._browse = ListModel(BROWSE_ROLES, self)
@@ -160,10 +166,71 @@ class Backend(QObject):
 
     def start(self):
         self._load_clients()
+        self._bg(selfupdate.cleanup)
+        if self.cfg.get("check_updates"):
+            self._bg(selfupdate.check, self._update_found)
         if self._uri:
             ref = sources.parse_ref(self._uri)
             if ref:
                 self.showBrowse.emit(ref)
+
+    def _update_found(self, info, err):
+        self._update = info
+        self.updateChanged.emit()
+
+    @Slot()
+    def installUpdate(self):
+        info = self._update
+        if not info or self._updating:
+            return
+        if not info.get("url"):
+            self.openUrl(info["page"])
+            return
+        self._updating = True
+        self._update_progress = 0.0
+        self.updateChanged.emit()
+        last = [0.0]
+
+        def progress(p):
+            if p - last[0] >= 0.02 or p >= 1:
+                last[0] = p
+                self._post.emit(lambda: self._set_update_progress(p))
+
+        def work():
+            try:
+                selfupdate.install(info, progress)
+            except selfupdate.UpdateError as e:
+                raise SourceError(str(e)) from e
+
+        def done(result, err):
+            if err:
+                self._updating = False
+                self.updateChanged.emit()
+                self.toast.emit(err, True)
+                return
+            QGuiApplication.quit()
+
+        self._bg(work, done)
+
+    def _set_update_progress(self, p):
+        self._update_progress = p
+        self.updateChanged.emit()
+
+    @Slot()
+    def dismissUpdate(self):
+        if not self._updating:
+            self._update = None
+            self.updateChanged.emit()
+
+    def _auto_update(self):
+        client = self._client()
+        if not client or not self.cfg.get("update_on_start") or client.id in self._auto_done:
+            return
+        if self._loading or any(e.checking for e in self._entries.values()):
+            return
+        self._auto_done.add(client.id)
+        if self._update_count():
+            self.updateAll()
 
     def _load_clients(self):
         current = self._client()
@@ -196,12 +263,18 @@ class Backend(QObject):
     def _recount(self, client):
         mgr = self._mgr(client)
 
+        def work():
+            if self.cfg.get("update_on_start") and client.id not in self._auto_done:
+                self._auto_done.add(client.id)
+                update_client(client, self.cfg, quiet=True)
+            return survey(mgr)
+
         def done(result, err):
             if result is not None:
                 n = sum(1 for a, r, e in result if can_auto_update(a, r))
                 self._clients_model.patch(client.id, updates=n)
 
-        self._bg(lambda: survey(mgr), done)
+        self._bg(work, done)
 
     def _row(self, e):
         a, rel = e.addon, e.release
@@ -292,6 +365,7 @@ class Backend(QObject):
             e.checking = False
             self._entries[e.addon.key] = e
             self._publish()
+            self._auto_update()
 
         self._bg(work, done)
 
@@ -797,6 +871,54 @@ class Backend(QObject):
 
         self._bg(desktop.enable_timer if on else desktop.disable_timer, done)
 
+    @Slot(bool)
+    def setAutostart(self, on):
+        try:
+            desktop.enable_autostart() if on else desktop.disable_autostart()
+        except OSError as e:
+            self.toast.emit(str(e), True)
+        self.settingsChanged.emit()
+
+    @Slot(bool)
+    def setUpdateOnStart(self, on):
+        self.cfg.set("update_on_start", bool(on))
+        self.settingsChanged.emit()
+
+    @Slot(bool)
+    def setCheckUpdates(self, on):
+        self.cfg.set("check_updates", bool(on))
+        self.settingsChanged.emit()
+        if on and not self._update:
+            self._bg(selfupdate.check, self._update_found)
+
+    @Property(bool, notify=settingsChanged)
+    def autostart(self):
+        return desktop.autostart_enabled()
+
+    @Property(bool, notify=settingsChanged)
+    def updateOnStart(self):
+        return bool(self.cfg.get("update_on_start"))
+
+    @Property(bool, notify=settingsChanged)
+    def checkUpdates(self):
+        return bool(self.cfg.get("check_updates"))
+
+    @Property(str, notify=updateChanged)
+    def updateVersion(self):
+        return self._update["version"] if self._update else ""
+
+    @Property(bool, notify=updateChanged)
+    def updateInstallable(self):
+        return bool(self._update and self._update.get("url"))
+
+    @Property(bool, notify=updateChanged)
+    def updating(self):
+        return self._updating
+
+    @Property(float, notify=updateChanged)
+    def updateProgress(self):
+        return self._update_progress
+
     @Property(QObject, constant=True)
     def addons(self):
         return self._addons
@@ -927,6 +1049,20 @@ class Backend(QObject):
         return f"{files} ({size}) from addons that are no longer installed: {shown}"
 
 
+class UrlFilter(QObject):
+    def __init__(self, backend):
+        super().__init__()
+        self.backend = backend
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.FileOpen:
+            ref = sources.parse_ref(event.url().toString())
+            if ref:
+                self.backend.showBrowse.emit(ref)
+                return True
+        return False
+
+
 def run(uri=""):
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
     app = QGuiApplication(sys.argv[:1])
@@ -935,14 +1071,27 @@ def run(uri=""):
     app.setDesktopFileName("wowam")
     app.setWindowIcon(QIcon(str(desktop.icon_source())))
     backend = Backend(uri)
+    urls = UrlFilter(backend)
+    app.installEventFilter(urls)
     engine = QQmlApplicationEngine()
+    smoke = os.environ.get("WOWAM_SMOKE")
+    problems = []
+    if smoke:
+        engine.warnings.connect(lambda ws: problems.extend(w.toString() for w in ws))
     engine.addImportPath(str(QML_DIR))
     engine.rootContext().setContextProperty("backend", backend)
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Wowam" / "Main.qml")))
     if not engine.rootObjects():
+        if smoke:
+            Path(smoke).write_text("load failed\n" + "\n".join(problems))
         return 1
     backend.start()
+    if smoke:
+        QTimer.singleShot(4000, app.quit)
     code = app.exec()
+    if smoke:
+        Path(smoke).write_text("\n".join(problems) if problems else "ok")
+        code = 2 if problems else code
     backend.shutdown()
     del engine
     return code

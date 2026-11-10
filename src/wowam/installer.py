@@ -18,7 +18,7 @@ def _files(path):
         dirs.sort()
         for name in sorted(files):
             full = os.path.join(base, name)
-            out.append((os.path.relpath(full, path), full))
+            out.append((os.path.relpath(full, path).replace(os.sep, "/"), full))
     return out
 
 

@@ -82,7 +82,16 @@ Item {
             }
 
             Card {
-                title: "Background updates"
+                title: "Automatic"
+                Line {
+                    label: "Start wowam when I log in"
+                    Toggle { checked: backend.autostart; Accessible.name: "Start wowam when I log in"; onToggled: backend.setAutostart(checked) }
+                }
+                Line {
+                    label: "Update addons when wowam opens"
+                    detail: "Installs every available update for all your installs as soon as the window opens. Pinned addons and ones you changed are left alone."
+                    Toggle { checked: backend.updateOnStart; Accessible.name: "Update addons when wowam opens"; onToggled: backend.setUpdateOnStart(checked) }
+                }
                 Line {
                     label: "Update addons in the background"
                     detail: "Checks every six hours while you are logged in and shows a notification when something was updated."
@@ -92,6 +101,11 @@ Item {
                     label: "Show wowam in the app launcher"
                     detail: "Also lets install links on the Wago Addons website open here."
                     Toggle { checked: backend.launcher; Accessible.name: "Show wowam in the app launcher"; onToggled: backend.setLauncher(checked) }
+                }
+                Line {
+                    label: "Tell me about new wowam versions"
+                    detail: "Checks the wowam page on GitHub when the window opens."
+                    Toggle { checked: backend.checkUpdates; Accessible.name: "Tell me about new wowam versions"; onToggled: backend.setCheckUpdates(checked) }
                 }
             }
 
@@ -190,7 +204,7 @@ Item {
 
             Card {
                 title: "Extra WoW folders"
-                hint: "Installs in Lutris, Wine, Bottles and Steam folders are found automatically. Add a folder here when yours is somewhere else."
+                hint: "Installs in the usual places are found automatically. Add a folder here when yours is somewhere else."
                 Repeater {
                     model: backend.extraPaths
                     RowLayout {

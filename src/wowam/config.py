@@ -10,6 +10,8 @@ DEFAULTS = {
     "backup_keep": 7,
     "backup_on_update": True,
     "last_client": "",
+    "check_updates": True,
+    "update_on_start": False,
 }
 
 
