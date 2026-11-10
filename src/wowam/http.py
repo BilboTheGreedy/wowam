@@ -12,12 +12,29 @@ from .paths import cache_dir
 UA = f"wowam/{__version__}"
 
 
+CA_FILES = (
+    "/etc/ssl/certs/ca-certificates.crt",
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/cert.pem",
+    "/etc/ssl/ca-bundle.pem",
+)
+
+
 def _context():
+    ctx = ssl.create_default_context()
+    for path in CA_FILES:
+        if os.path.isfile(path):
+            try:
+                ctx.load_verify_locations(cafile=path)
+            except (OSError, ssl.SSLError):
+                pass
     try:
         import certifi
-    except ImportError:
-        return None
-    return ssl.create_default_context(cafile=certifi.where())
+
+        ctx.load_verify_locations(cafile=certifi.where())
+    except (ImportError, OSError, ssl.SSLError):
+        pass
+    return ctx
 
 
 CONTEXT = _context()

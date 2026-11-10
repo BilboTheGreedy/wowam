@@ -8,7 +8,7 @@ from PySide6.QtCore import Property, QAbstractListModel, QEvent, QModelIndex, QO
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 
-from .. import __version__, backup, desktop, selfupdate, sources
+from .. import __version__, backup, desktop, http, selfupdate, sources
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -1121,6 +1121,10 @@ def run(uri=""):
         QTimer.singleShot(4000, app.quit)
     code = app.exec()
     if smoke:
+        try:
+            http.final_url("https://github.com/")
+        except http.HttpError as e:
+            problems.append(str(e))
         Path(smoke).write_text("\n".join(problems) if problems else "ok")
         code = 2 if problems else code
     backend.shutdown()
