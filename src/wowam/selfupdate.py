@@ -38,32 +38,20 @@ def app_dir():
 
 def check(current=__version__):
     try:
-        data = http.get_json(
-            f"https://api.github.com/repos/{REPO}/releases/latest",
-            {"Accept": "application/vnd.github+json"},
-            etag=True,
-        )
+        page = http.final_url(f"https://github.com/{REPO}/releases/latest")
     except http.HttpError:
         return None
-    if not isinstance(data, dict):
+    found = re.search(r"/releases/tag/([\w.+-]+)$", page)
+    if not found:
         return None
-    tag = data.get("tag_name", "")
+    tag = found.group(1)
     if parse(tag) <= parse(current):
         return None
     wanted = ASSETS.get(kind())
-    url = ""
-    for asset in data.get("assets") or []:
-        if asset.get("name") == wanted:
-            url = asset.get("browser_download_url", "")
-    if not url.startswith(f"https://github.com/{REPO}/"):
-        url = ""
+    url = f"https://github.com/{REPO}/releases/download/{tag}/{wanted}" if wanted else ""
     if url and kind() == "linux" and not os.access(app_dir().parent, os.W_OK):
         url = ""
-    return {
-        "version": tag.lstrip("vV"),
-        "page": data.get("html_url") or f"https://github.com/{REPO}/releases",
-        "url": url,
-    }
+    return {"version": tag.lstrip("vV"), "page": page, "url": url}
 
 
 def swap(archive, target, exe_name):

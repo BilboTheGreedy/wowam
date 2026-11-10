@@ -37,23 +37,19 @@ class SelfUpdateTests(unittest.TestCase):
 
     def test_check(self):
         repo = selfupdate.REPO
-        release = {
-            "tag_name": "v9.0.0",
-            "html_url": "page",
-            "assets": [
-                {"name": "wowam-setup.exe", "browser_download_url": f"https://github.com/{repo}/x/wowam-setup.exe"},
-                {"name": "wowam-linux-x86_64.tar.gz", "browser_download_url": "https://evil.example/x.tar.gz"},
-            ],
-        }
-        with mock.patch.object(selfupdate.http, "get_json", return_value=release):
+        page = f"https://github.com/{repo}/releases/tag/v9.0.0"
+        with mock.patch.object(selfupdate.http, "final_url", return_value=page):
             info = selfupdate.check("0.1.0")
             self.assertEqual(info["version"], "9.0.0")
             self.assertEqual(info["url"], "")
+            self.assertEqual(info["page"], page)
             self.assertIsNone(selfupdate.check("9.0.0"))
+            self.assertIsNone(selfupdate.check("9.0.1"))
             with mock.patch.object(selfupdate, "kind", return_value="windows"):
-                self.assertTrue(selfupdate.check("0.1.0")["url"].endswith("wowam-setup.exe"))
-            with mock.patch.object(selfupdate, "kind", return_value="linux"):
-                self.assertEqual(selfupdate.check("0.1.0")["url"], "")
+                want = f"https://github.com/{repo}/releases/download/v9.0.0/wowam-setup.exe"
+                self.assertEqual(selfupdate.check("0.1.0")["url"], want)
+        with mock.patch.object(selfupdate.http, "final_url", return_value=f"https://github.com/{repo}/releases"):
+            self.assertIsNone(selfupdate.check("0.1.0"))
 
     def test_swap(self):
         with tempfile.TemporaryDirectory() as tmp:

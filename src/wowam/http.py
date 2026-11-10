@@ -46,6 +46,11 @@ def _request(url, headers=None, data=None, timeout=30):
         raise HttpError(0, f"could not reach {urllib.request.urlparse(url).netloc}: {reason}") from e
 
 
+def final_url(url, timeout=20):
+    with _request(url, timeout=timeout) as resp:
+        return resp.geturl()
+
+
 def get_json(url, headers=None, etag=False, max_age=0, timeout=30):
     body_path = _cache_path(url, "http")
     meta_path = body_path.with_suffix(".meta")
