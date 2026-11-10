@@ -1,0 +1,17 @@
+module Wowam
+singleton Theme 1.0 Theme.qml
+Icon 1.0 Icon.qml
+Btn 1.0 Btn.qml
+IconBtn 1.0 IconBtn.qml
+Field 1.0 Field.qml
+Toggle 1.0 Toggle.qml
+Card 1.0 Card.qml
+Spinner 1.0 Spinner.qml
+PopMenu 1.0 PopMenu.qml
+PopItem 1.0 PopItem.qml
+Modal 1.0 Modal.qml
+Sidebar 1.0 Sidebar.qml
+AddonRow 1.0 AddonRow.qml
+BrowseRow 1.0 BrowseRow.qml
+AddonsPage 1.0 AddonsPage.qml
+SettingsPage 1.0 SettingsPage.qml

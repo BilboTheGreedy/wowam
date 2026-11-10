@@ -1,0 +1,17 @@
+KNOWN = {
+    "ElvUI": "tukui:elvui",
+    "Tukui": "tukui:tukui",
+    "BigWigs": "gh:BigWigsMods/BigWigs",
+    "LittleWigs": "gh:BigWigsMods/LittleWigs",
+    "BugSack": "gh:funkydude/BugSack",
+    "WeakAuras": "gh:WeakAuras/WeakAuras2",
+    "Details": "gh:Tercioo/Details-Damage-Meter",
+    "Plater": "gh:Tercioo/Plater-Nameplates",
+    "RaiderIO": "gh:RaiderIO/raiderio-addon",
+    "Simulationcraft": "gh:simulationcraft/simc-addon",
+    "DBM-Core": "gh:DeadlyBossMods/DeadlyBossMods",
+    "MythicDungeonTools": "gh:Nnoggie/MythicDungeonTools",
+    "Bartender4": "gh:Nevcairiel/Bartender4",
+    "OmniCC": "gh:tullamods/OmniCC",
+    "Dominos": "gh:tullamods/Dominos",
+}
