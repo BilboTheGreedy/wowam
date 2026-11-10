@@ -61,15 +61,24 @@ Rectangle {
             spacing: 10
             Image {
                 source: Qt.resolvedUrl("../../../data/wowam.svg")
-                sourceSize.width: 30
-                sourceSize.height: 30
+                sourceSize.width: 34
+                sourceSize.height: 34
             }
-            Text {
-                text: "wowam"
-                color: Theme.text
-                font.pixelSize: 17
-                font.weight: Font.Bold
-                font.letterSpacing: 0.2
+            Column {
+                spacing: 1
+                Text {
+                    text: "WORLD OF WARCRAFT"
+                    color: Theme.faint
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 1.1
+                }
+                Text {
+                    text: "Addon Manager"
+                    color: Theme.text
+                    font.pixelSize: 16
+                    font.weight: Font.Bold
+                }
             }
         }
 

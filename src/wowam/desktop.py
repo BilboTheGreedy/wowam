@@ -9,6 +9,9 @@ from pathlib import Path
 from .paths import MAC, WIN, config_home, data_dir, data_home
 
 APP_ID = "wowam"
+APP_NAME = "WoW Addon Manager"
+FULL_NAME = "World of Warcraft Addon Manager"
+ICON_SIZES = (16, 32, 48, 64, 128, 256, 512)
 BUNDLE_ID = "org.wowam.app"
 AGENT_ID = "org.wowam.update"
 TASK = "wowam-update"
@@ -60,8 +63,38 @@ def desktop_file():
     return data_home() / "applications" / f"{APP_ID}.desktop"
 
 
+def icon_theme():
+    return data_home() / "icons" / "hicolor"
+
+
 def icon_file():
-    return data_home() / "icons" / "hicolor" / "scalable" / "apps" / f"{APP_ID}.svg"
+    return icon_theme() / "scalable" / "apps" / f"{APP_ID}.svg"
+
+
+def icon_files():
+    out = [(icon_source(), icon_file())]
+    for size in ICON_SIZES:
+        src = icon_source().with_name(f"{APP_ID}-{size}.png")
+        out.append((src, icon_theme() / f"{size}x{size}" / "apps" / f"{APP_ID}.png"))
+    return out
+
+
+def _refresh_icons():
+    theme = icon_theme()
+    folders = {theme}
+    for _, dst in icon_files():
+        folders.update((dst.parent, dst.parent.parent))
+    for folder in folders:
+        try:
+            os.utime(folder)
+        except OSError:
+            pass
+    if (theme / "icon-theme.cache").exists():
+        if not _run(["gtk-update-icon-cache", "-f", "-t", str(theme)]):
+            try:
+                (theme / "icon-theme.cache").unlink()
+            except OSError:
+                pass
 
 
 def unit_dir():
@@ -69,18 +102,21 @@ def unit_dir():
 
 
 def _linux_install():
-    icon = icon_file()
-    icon.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(icon_source(), icon)
+    for src, dst in icon_files():
+        if src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+    _refresh_icons()
     entry = desktop_file()
     entry.parent.mkdir(parents=True, exist_ok=True)
     mime = "".join(f"x-scheme-handler/{s};" for s in SCHEMES)
     entry.write_text(
         "[Desktop Entry]\n"
         "Type=Application\n"
-        "Name=wowam\n"
-        "GenericName=WoW Addon Manager\n"
+        f"Name={APP_NAME}\n"
+        f"GenericName={FULL_NAME}\n"
         "Comment=Install and update World of Warcraft addons\n"
+        "Keywords=wow;wowam;warcraft;addon;addons;\n"
         f"Exec={_quote(command())} %u\n"
         f"Icon={APP_ID}\n"
         "Terminal=false\n"
@@ -89,12 +125,13 @@ def _linux_install():
         f"MimeType={mime}\n"
     )
     _run(["update-desktop-database", str(entry.parent)])
+    _run(["kbuildsycoca6"])
     for scheme in SCHEMES:
         _run(["xdg-mime", "default", entry.name, f"x-scheme-handler/{scheme}"])
 
 
 def _linux_remove():
-    for path in (desktop_file(), icon_file()):
+    for path in [desktop_file()] + [dst for _, dst in icon_files()]:
         try:
             path.unlink()
         except OSError:
@@ -103,7 +140,7 @@ def _linux_remove():
 
 
 def shortcut_file():
-    return config_home() / "Microsoft" / "Windows" / "Start Menu" / "Programs" / f"{APP_ID}.lnk"
+    return config_home() / "Microsoft" / "Windows" / "Start Menu" / "Programs" / f"{APP_NAME}.lnk"
 
 
 def _win_icon():
@@ -127,6 +164,10 @@ def _win_install():
     cmd = command(gui=True)
     link = shortcut_file()
     link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.with_name(f"{APP_ID}.lnk").unlink()
+    except OSError:
+        pass
     script = (
         "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:WOWAM_LNK);"
         "$s.TargetPath=$env:WOWAM_TARGET;"
@@ -156,10 +197,11 @@ def _win_install():
 def _win_remove():
     import winreg
 
-    try:
-        shortcut_file().unlink()
-    except OSError:
-        pass
+    for link in (shortcut_file(), shortcut_file().with_name(f"{APP_ID}.lnk")):
+        try:
+            link.unlink()
+        except OSError:
+            pass
     for scheme in SCHEMES:
         base = rf"Software\Classes\{scheme}"
         for sub in (r"\shell\open\command", r"\shell\open", r"\shell", ""):
@@ -170,18 +212,19 @@ def _win_remove():
 
 
 def bundle_dir():
-    return Path.home() / "Applications" / f"{APP_ID}.app"
+    return Path.home() / "Applications" / f"{APP_NAME}.app"
 
 
 def _mac_install():
     bundle = bundle_dir()
+    shutil.rmtree(bundle.with_name(f"{APP_ID}.app"), ignore_errors=True)
     macos = bundle / "Contents" / "MacOS"
     macos.mkdir(parents=True, exist_ok=True)
     with open(bundle / "Contents" / "Info.plist", "wb") as f:
         plistlib.dump(
             {
-                "CFBundleName": APP_ID,
-                "CFBundleDisplayName": APP_ID,
+                "CFBundleName": APP_NAME,
+                "CFBundleDisplayName": APP_NAME,
                 "CFBundleIdentifier": BUNDLE_ID,
                 "CFBundleExecutable": APP_ID,
                 "CFBundlePackageType": "APPL",
@@ -214,6 +257,19 @@ def launcher_installed():
     if MAC:
         return bundle_dir().exists()
     return desktop_file().exists()
+
+
+def refresh_launcher():
+    if WIN or MAC or not desktop_file().exists():
+        return
+    try:
+        current = f"Name={APP_NAME}\n" in desktop_file().read_text()
+        for src, dst in icon_files():
+            current = current and src.is_file() and dst.is_file() and src.stat().st_size == dst.stat().st_size
+    except OSError:
+        current = False
+    if not current:
+        _linux_install()
 
 
 def install_launcher():
@@ -366,7 +422,7 @@ def enable_autostart():
         path.write_text(
             "[Desktop Entry]\n"
             "Type=Application\n"
-            "Name=wowam\n"
+            f"Name={APP_NAME}\n"
             f"Exec={_quote(command())}\n"
             f"Icon={APP_ID}\n"
             "Terminal=false\n"
@@ -412,4 +468,4 @@ def notify(title, body):
         )
         _run(["osascript", "-e", script], env={"WOWAM_TITLE": title, "WOWAM_BODY": body})
     elif shutil.which("notify-send"):
-        _run(["notify-send", "-a", "wowam", "-i", APP_ID, title, body])
+        _run(["notify-send", "-a", APP_NAME, "-i", APP_ID, title, body])

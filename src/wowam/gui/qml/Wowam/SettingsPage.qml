@@ -84,13 +84,13 @@ Item {
             Card {
                 title: "Automatic"
                 Line {
-                    label: "Start wowam when I log in"
-                    Toggle { value: backend.autostart; Accessible.name: "Start wowam when I log in"; onRequested: (on) => backend.setAutostart(on) }
+                    label: "Start when I log in"
+                    Toggle { value: backend.autostart; Accessible.name: "Start when I log in"; onRequested: (on) => backend.setAutostart(on) }
                 }
                 Line {
-                    label: "Update addons when wowam opens"
+                    label: "Update addons when the app opens"
                     detail: "Installs every available update for all your installs as soon as the window opens. Pinned addons and ones you changed are left alone."
-                    Toggle { value: backend.updateOnStart; Accessible.name: "Update addons when wowam opens"; onRequested: (on) => backend.setUpdateOnStart(on) }
+                    Toggle { value: backend.updateOnStart; Accessible.name: "Update addons when the app opens"; onRequested: (on) => backend.setUpdateOnStart(on) }
                 }
                 Line {
                     label: "Update addons in the background"
@@ -98,14 +98,53 @@ Item {
                     Toggle { value: backend.timer; Accessible.name: "Update addons in the background"; onRequested: (on) => backend.setTimer(on) }
                 }
                 Line {
-                    label: "Show wowam in the app launcher"
+                    label: "Show in the app launcher"
                     detail: "Also lets install links on the Wago Addons website open here."
-                    Toggle { value: backend.launcher; Accessible.name: "Show wowam in the app launcher"; onRequested: (on) => backend.setLauncher(on) }
+                    Toggle { value: backend.launcher; Accessible.name: "Show in the app launcher"; onRequested: (on) => backend.setLauncher(on) }
                 }
                 Line {
-                    label: "Tell me about new wowam versions"
-                    detail: "Checks the wowam page on GitHub when the window opens."
-                    Toggle { value: backend.checkUpdates; Accessible.name: "Tell me about new wowam versions"; onRequested: (on) => backend.setCheckUpdates(on) }
+                    label: "Tell me about new versions of this app"
+                    detail: "Checks the project page on GitHub when the window opens."
+                    Toggle { value: backend.checkUpdates; Accessible.name: "Tell me about new versions of this app"; onRequested: (on) => backend.setCheckUpdates(on) }
+                }
+            }
+
+            Card {
+                title: "Appearance"
+                Line {
+                    label: "Theme"
+                    Repeater {
+                        model: [["", "System"], ["light", "Light"], ["dark", "Dark"]]
+                        Btn {
+                            required property var modelData
+                            text: modelData[1]
+                            kind: backend.themeMode === modelData[0] ? "accent" : "ghost"
+                            onClicked: backend.setTheme(modelData[0])
+                        }
+                    }
+                }
+            }
+
+            Card {
+                title: "Recent changes"
+                hint: "What was installed, updated or rolled back lately, including background updates."
+                Repeater {
+                    model: backend.history
+                    RowLayout {
+                        id: historyRow
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Text { text: historyRow.modelData.name; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium; elide: Text.ElideRight; Layout.preferredWidth: 180 }
+                        Text { text: historyRow.modelData.change; color: Theme.sub; font.pixelSize: Theme.small; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                        Text { text: historyRow.modelData.where + "  ·  " + historyRow.modelData.when; color: Theme.faint; font.pixelSize: Theme.small }
+                    }
+                }
+                Text {
+                    visible: backend.history.length === 0
+                    text: "Nothing yet."
+                    color: Theme.sub
+                    font.pixelSize: Theme.small
                 }
             }
 
@@ -221,7 +260,7 @@ Item {
             }
 
             Text {
-                text: "wowam " + backend.version
+                text: backend.fullName + " " + backend.version
                 color: Theme.faint
                 font.pixelSize: Theme.small
                 Layout.topMargin: 4

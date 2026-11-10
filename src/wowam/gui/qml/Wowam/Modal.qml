@@ -10,6 +10,7 @@ Popup {
     property string confirmText: "OK"
     property bool danger: false
     property bool confirmEnabled: true
+    property bool showCancel: true
     default property alias extra: slot.data
     signal confirmed()
 
@@ -59,7 +60,7 @@ Popup {
             Layout.fillWidth: true
             spacing: 8
             Item { Layout.fillWidth: true }
-            Btn { text: "Cancel"; kind: "ghost"; onClicked: root.close() }
+            Btn { text: "Cancel"; kind: "ghost"; visible: root.showCancel; onClicked: root.close() }
             Btn {
                 text: root.confirmText
                 kind: root.danger ? "danger" : "primary"

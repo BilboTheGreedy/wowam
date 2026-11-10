@@ -12,6 +12,11 @@ Item {
         if (browseField.text.trim().length > 0) backend.search(browseField.text)
     }
 
+    function focusSearch() {
+        if (tab === 0) filterField.forceActiveFocus()
+        else browseField.forceActiveFocus()
+    }
+
     function browseFor(text) {
         tab = 1
         browseField.text = text
@@ -200,6 +205,7 @@ Item {
                             menu.popup(anchor, 0, anchor.height + 4)
                         }
                         onLinkRequested: (row) => linkDialog.show(row)
+                        onFindRequested: (name) => root.browseFor(name)
                     }
                 }
                 Empty {
@@ -323,7 +329,7 @@ Item {
         visible: !backend.hasClient
         iconName: "folder"
         heading: "No World of Warcraft install found"
-        detail: "wowam looks in the usual install locations. If your game lives somewhere else, point to its folder."
+        detail: "The usual install locations are checked automatically. If your game lives somewhere else, point to its folder."
         Btn { text: "Add WoW folder"; kind: "primary"; iconName: "plus"; onClicked: root.addFolderRequested() }
     }
 
@@ -331,6 +337,18 @@ Item {
         id: menu
         property var row: null
         readonly property bool managed: row ? row.managed : false
+        PopItem {
+            text: "What's new"
+            iconName: "notes"
+            visible: menu.row ? menu.row.notes : false
+            onTriggered: notesDialog.show(menu.row.key)
+        }
+        PopItem {
+            text: menu.row && menu.row.previous ? "Go back to " + menu.row.previous : ""
+            iconName: "back"
+            visible: menu.row ? menu.row.previous !== "" : false
+            onTriggered: backend.rollback(menu.row.key)
+        }
         PopItem {
             text: "Reinstall"
             iconName: "download"
@@ -396,6 +414,41 @@ Item {
     }
 
     Modal {
+        id: notesDialog
+        property string body: ""
+        property bool markdown: false
+        function show(key) {
+            var n = backend.notesFor(key)
+            title = n.title
+            body = n.text
+            markdown = n.markdown
+            open()
+        }
+        width: Math.min(620, parent ? parent.width - 48 : 620)
+        confirmText: "Close"
+        showCancel: false
+        onConfirmed: close()
+        ScrollView {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(notesText.implicitHeight, 380)
+            clip: true
+            contentWidth: availableWidth
+            Text {
+                id: notesText
+                width: parent.width
+                text: notesDialog.body
+                textFormat: notesDialog.markdown ? Text.MarkdownText : Text.PlainText
+                color: Theme.text
+                linkColor: Theme.accentText
+                font.pixelSize: Theme.body
+                lineHeight: 1.25
+                wrapMode: Text.Wrap
+                onLinkActivated: (link) => backend.openUrl(link)
+            }
+        }
+    }
+
+    Modal {
         id: linkDialog
         property string key: ""
         function show(row) {
@@ -405,7 +458,7 @@ Item {
             open()
             linkField.forceActiveFocus()
         }
-        message: "Paste the addon's page on GitHub, WoWInterface or Wago Addons. wowam will check that page for new versions."
+        message: "Paste the addon's page on GitHub, WoWInterface or Wago Addons. That page is then checked for new versions."
         confirmText: "Set source"
         confirmEnabled: linkField.text.trim().length > 0
         onConfirmed: if (backend.linkAddon(key, linkField.text)) close()

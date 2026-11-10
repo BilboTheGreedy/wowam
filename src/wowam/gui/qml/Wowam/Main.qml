@@ -11,12 +11,17 @@ ApplicationWindow {
     minimumWidth: 780
     minimumHeight: 520
     visible: true
-    title: "wowam"
+    title: backend.fullName
     color: Theme.bg
 
     property bool settingsOpen: false
 
-    Component.onCompleted: Theme.mode = backend.themeMode
+    Binding { target: Theme; property: "mode"; value: backend.themeMode }
+
+    Shortcut { sequences: ["F5", "Ctrl+R"]; onActivated: backend.refresh() }
+    Shortcut { sequence: "Ctrl+U"; onActivated: backend.updateAll() }
+    Shortcut { sequence: "Ctrl+F"; onActivated: { window.settingsOpen = false; addonsPage.focusSearch() } }
+    Shortcut { sequence: "Ctrl+,"; onActivated: window.settingsOpen = !window.settingsOpen }
 
     RowLayout {
         anchors.fill: parent
@@ -50,8 +55,8 @@ ApplicationWindow {
                     Text {
                         Layout.fillWidth: true
                         text: backend.updating
-                            ? "Downloading wowam " + backend.updateVersion + "  ·  " + Math.round(backend.updateProgress * 100) + "%"
-                            : "wowam " + backend.updateVersion + " is available. You have " + backend.version + "."
+                            ? "Downloading version " + backend.updateVersion + "  ·  " + Math.round(backend.updateProgress * 100) + "%"
+                            : "Version " + backend.updateVersion + " of " + backend.appName + " is available. You have " + backend.version + "."
                         color: Theme.text
                         font.pixelSize: Theme.body
                         font.weight: Font.Medium

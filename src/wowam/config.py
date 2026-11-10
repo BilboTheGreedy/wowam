@@ -13,6 +13,7 @@ DEFAULTS = {
     "check_updates": True,
     "update_on_start": False,
     "browse_listed": "",
+    "theme": "",
 }
 
 

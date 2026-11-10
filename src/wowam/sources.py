@@ -49,6 +49,7 @@ class Release:
     author: str = ""
     page: str = ""
     headers: dict = field(default_factory=dict)
+    notes: str = ""
 
 
 def parse_ref(text):
@@ -198,6 +199,7 @@ def _gh_latest(ident, client, cfg, channel):
                 author=ident.split("/")[0],
                 page=f"https://github.com/{ident}",
                 headers=headers,
+                notes=(release.get("body") or "").strip()[:8000],
             )
     raise SourceError(f"{ident} has no download for {client.label}.")
 
@@ -218,6 +220,7 @@ def _wowi_latest(ident, client, cfg, channel):
         name=item.get("UIName", ""),
         author=item.get("UIAuthorName", ""),
         page=f"https://www.wowinterface.com/downloads/info{ident}",
+        notes=re.sub(r"\[/?\w+[^\]]*\]", "", str(item.get("UIChangeLog") or "")).strip()[:8000],
     )
 
 

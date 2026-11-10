@@ -2,12 +2,13 @@ import hashlib
 import re
 import threading
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 
-from . import http, installer, sources, toc
+from . import history, http, installer, sources, toc
 from .known import KNOWN
-from .paths import cache_dir
+from .paths import cache_dir, data_dir
 from .sources import SourceError
 from .state import State
 
@@ -31,6 +32,9 @@ class Addon:
     author: str = ""
     page: str = ""
     note: str = ""
+    previous: str = ""
+    outdated: bool = False
+    needs: list = field(default_factory=list)
     candidates: list = field(default_factory=list)
 
 
@@ -165,10 +169,73 @@ class Manager:
             roots.setdefault(cur, []).append(f)
         return roots, tocs
 
+    def _health(self, dirs, present):
+        needs = []
+        nums = []
+        main = min(dirs, key=len)
+        for d in dirs:
+            fields = toc.read(self.client.addons_dir / d, self.client.flavor)
+            for dep in toc.deps(fields):
+                if dep not in present and dep not in needs and not dep.startswith("Blizzard_"):
+                    needs.append(dep)
+            if d == main:
+                nums = [int(n) for n in re.findall(r"\d+", fields.get("interface", ""))]
+        current = self.client.interface or 0
+        if not nums or not current or self.client.flavor == "forever":
+            return needs, False
+        same = [n for n in nums if n // 10000 == current // 10000]
+        return needs, max(same, default=0) < current // 100 * 100
+
+    def rollback_file(self, ref):
+        name = hashlib.sha1(ref.encode()).hexdigest()[:12]
+        return data_dir() / "rollback" / self.client.id / f"{name}.zip"
+
+    def _keep_previous(self, ref, old):
+        dirs = [d for d in old.get("dirs", []) if (self.client.addons_dir / d).is_dir()]
+        if not dirs or not old.get("version"):
+            return False
+        target = self.rollback_file(ref)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_suffix(".part")
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
+                for d in dirs:
+                    for rel, full in installer._files(self.client.addons_dir / d):
+                        zf.write(full, f"{d}/{rel}")
+            tmp.replace(target)
+            return True
+        except OSError:
+            return False
+
+    def rollback(self, ref):
+        with self.lock:
+            self.state.load()
+            rec = self.state.addons.get(ref)
+            source = self.rollback_file(ref)
+            if not rec or not rec.get("previous") or not source.is_file():
+                raise SourceError("There is no earlier version saved for this addon.")
+            try:
+                names = installer.install_zip(source, self.client.addons_dir)
+            except installer.InstallError as e:
+                raise SourceError(str(e)) from e
+            for d in rec.get("dirs", []):
+                if d not in names and not rec.get("adopted"):
+                    installer.remove(self.client.addons_dir / d)
+            history.add(self.client.label, rec.get("name") or ref, rec.get("version", ""), rec["previous"])
+            rec["version"] = rec.pop("previous")
+            rec["dirs"] = names
+            rec["hashes"], rec["stamps"] = self._fingerprints(names)
+            rec["pinned"] = True
+            rec["time"] = int(time.time())
+            self.state.save()
+            source.unlink()
+            return rec
+
     def list(self):
         with self.lock:
             self.state.load()
             folders = self.folders()
+            everything = self.all_dirs()
             out = []
             owned = set()
             dirty = False
@@ -180,6 +247,7 @@ class Manager:
                 if present:
                     modified, touched = self._modified(rec)
                     dirty = dirty or touched
+                needs, outdated = self._health(present, everything) if present else ([], False)
                 out.append(
                     Addon(
                         key=ref,
@@ -194,6 +262,9 @@ class Manager:
                         channel=rec.get("channel", "stable"),
                         author=rec.get("author", ""),
                         page=rec.get("page", "") or sources.page_of(ref),
+                        previous=rec.get("previous", "") if self.rollback_file(ref).is_file() else "",
+                        needs=needs,
+                        outdated=outdated,
                     )
                 )
             if dirty:
@@ -202,6 +273,7 @@ class Manager:
             for root, dirs in roots.items():
                 fields = tocs[root]
                 candidates, note = self._candidates(root, fields)
+                needs, outdated = self._health(sorted(dirs), everything)
                 out.append(
                     Addon(
                         key=f"local:{root}",
@@ -210,6 +282,8 @@ class Manager:
                         dirs=sorted(dirs),
                         author=fields.get("author", ""),
                         note=note,
+                        needs=needs,
+                        outdated=outdated,
                         candidates=candidates,
                     )
                 )
@@ -310,12 +384,14 @@ class Manager:
             except http.HttpError as e:
                 raise SourceError(f"Download failed: {e}") from e
             with self.lock:
+                self.state.load()
+                old = self.state.addons.get(ref, {})
+                changed = bool(old) and not same_version(old.get("version", ""), release.version)
+                kept = changed and self._keep_previous(ref, old)
                 try:
                     names = installer.install_zip(zip_path, self.client.addons_dir)
                 except installer.InstallError as e:
                     raise SourceError(str(e)) from e
-                self.state.load()
-                old = self.state.addons.get(ref, {})
                 for other, rec in list(self.state.addons.items()):
                     if other == ref:
                         continue
@@ -344,8 +420,15 @@ class Manager:
                     "page": release.page or sources.page_of(ref),
                     "time": int(time.time()),
                 }
+                rec = self.state.addons[ref]
+                if kept:
+                    rec["previous"] = old.get("version", "")
+                elif old.get("previous") and not changed:
+                    rec["previous"] = old["previous"]
                 self.state.save()
-                return self.state.addons[ref]
+                if changed or not old:
+                    history.add(self.client.label, rec["name"], old.get("version", ""), rec["version"])
+                return rec
         finally:
             try:
                 zip_path.unlink()
@@ -363,6 +446,10 @@ class Manager:
                 self.state.load()
                 self.state.addons.pop(addon.ref, None)
                 self.state.save()
+                try:
+                    self.rollback_file(addon.ref).unlink()
+                except OSError:
+                    pass
 
     def set_field(self, ref, key, value):
         with self.lock:

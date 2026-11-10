@@ -37,6 +37,20 @@ def make_icon():
     return target
 
 
+def make_icns():
+    sizes = {16: "16x16", 32: "16x16@2x", 64: "32x32@2x", 128: "128x128", 256: "128x128@2x", 512: "256x256@2x"}
+    folder = BUILD / "wowam.iconset"
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
+    for size, name in sizes.items():
+        shutil.copyfile(ROOT / f"src/wowam/data/wowam-{size}.png", folder / f"icon_{name}.png")
+    shutil.copyfile(ROOT / "src/wowam/data/wowam-32.png", folder / "icon_32x32.png")
+    shutil.copyfile(ROOT / "src/wowam/data/wowam-256.png", folder / "icon_256x256.png")
+    target = BUILD / "wowam.icns"
+    subprocess.run(["iconutil", "-c", "icns", str(folder), "-o", str(target)], check=True)
+    return target
+
+
 PATTERN = re.compile(r"^(lib)?Qt6?(" + "|".join(DROP) + ")")
 
 
@@ -98,7 +112,7 @@ def main():
     if WIN:
         args += ["--icon", str(make_icon())]
     if MAC:
-        args += ["--osx-bundle-identifier", "org.wowam.app"]
+        args += ["--osx-bundle-identifier", "org.wowam.app", "--icon", str(make_icns())]
     args.append(str(ROOT / "run.py"))
     PyInstaller.__main__.run(args)
 

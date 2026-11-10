@@ -245,6 +245,37 @@ class ManagerTests(Base):
         self.assertEqual(self.mgr.list(), [])
         self.assertFalse((self.addons / "Foo").exists())
 
+    def test_rollback_and_history(self):
+        from wowam import history
+
+        self.mgr.install("gh:me/foo")
+        self.assertEqual(self.mgr.list()[0].previous, "")
+        self.version = "3.0"
+        self.files = {"Foo/Foo.toc": "## Title: Foo\n## Version: 3.0\n"}
+        self.mgr.install("gh:me/foo")
+        addon = self.mgr.list()[0]
+        self.assertEqual(addon.previous, "2.0")
+        rec = self.mgr.rollback("gh:me/foo")
+        self.assertEqual(rec["version"], "2.0")
+        addon = self.mgr.list()[0]
+        self.assertTrue(addon.pinned)
+        self.assertFalse(addon.modified)
+        self.assertEqual(addon.previous, "")
+        self.assertTrue((self.addons / "Foo_Opt").exists())
+        self.assertIn("Version: 2.0", (self.addons / "Foo/Foo.toc").read_text())
+        self.assertEqual([(h["old"], h["new"]) for h in history.entries()], [("3.0", "2.0"), ("2.0", "3.0"), ("", "2.0")])
+        with self.assertRaises(sources.SourceError):
+            self.mgr.rollback("gh:me/foo")
+
+    def test_health(self):
+        self.add_folder("Old", "## Interface: 110207\n## Dependencies: Ace3, Blizzard_Foo\n")
+        self.add_folder("New", "## Interface: 120105, 11508\n## RequiredDeps: Old\n")
+        found = {a.name: a for a in self.mgr.list()}
+        self.assertTrue(found["Old"].outdated)
+        self.assertEqual(found["Old"].needs, ["Ace3"])
+        self.assertFalse(found["New"].outdated)
+        self.assertEqual(found["New"].needs, [])
+
     def test_grouping_and_adopt(self):
         self.add_folder("BugSack", "## Title: BugSack\n## Version: v1\n## X-Website: https://github.com/funkydude/BugSack\n")
         self.add_folder("Thing", "## Title: Thing\n## Version: 1\n## X-Wago-ID: abc\n")

@@ -22,9 +22,14 @@ Rectangle {
     required property string action
     required property int folders
     required property bool busy
+    required property string previous
+    required property bool notes
+    required property bool outdated
+    required property string needs
 
     signal menuRequested(var row, var anchor)
     signal linkRequested(var row)
+    signal findRequested(string name)
 
     height: 64
     radius: Theme.radius
@@ -78,6 +83,14 @@ Rectangle {
                     radius: 4
                     color: Theme.tint(Theme.warn, 0.16)
                     Text { id: beta; anchors.centerIn: parent; text: "BETA"; color: Theme.warn; font.pixelSize: 9; font.weight: Font.Bold }
+                }
+                Rectangle {
+                    visible: root.outdated
+                    implicitWidth: old.implicitWidth + 10
+                    implicitHeight: 16
+                    radius: 4
+                    color: Theme.tint(Theme.sub, 0.16)
+                    Text { id: old; anchors.centerIn: parent; text: "OUT OF DATE"; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -161,12 +174,14 @@ Rectangle {
                     : root.action === "accept" ? "Use this"
                     : root.action === "link" ? "Set source"
                     : root.action === "reinstall" ? "Reinstall"
+                    : root.action === "find" ? "Find it"
                     : "Retry"
                 onClicked: {
                     if (root.action === "update") backend.updateAddon(root.key)
                     else if (root.action === "accept") backend.acceptGuess(root.key)
                     else if (root.action === "link") root.linkRequested(root)
                     else if (root.action === "reinstall") backend.reinstall(root.key)
+                    else if (root.action === "find") root.findRequested(root.needs)
                     else backend.retry(root.key)
                 }
             }

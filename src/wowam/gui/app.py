@@ -8,7 +8,7 @@ from PySide6.QtCore import Property, QAbstractListModel, QEvent, QModelIndex, QO
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 
-from .. import __version__, backup, desktop, http, selfupdate, sources
+from .. import __version__, backup, desktop, history, http, selfupdate, sources
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -19,7 +19,7 @@ QML_DIR = Path(__file__).resolve().parent / "qml"
 
 ADDON_ROLES = [
     "key", "name", "version", "latest", "source", "status", "statusText", "pinned", "modified", "managed",
-    "progress", "author", "page", "channel", "action", "folders", "busy",
+    "progress", "author", "page", "channel", "action", "folders", "busy", "previous", "notes", "outdated", "needs",
 ]
 CLIENT_ROLES = ["key", "label", "location", "version", "updates"]
 BROWSE_ROLES = [
@@ -109,6 +109,7 @@ class Backend(QObject):
     browseChanged = Signal()
     showBrowse = Signal(str)
     updateChanged = Signal()
+    historyChanged = Signal()
 
     def __init__(self, uri=""):
         super().__init__()
@@ -168,6 +169,7 @@ class Backend(QObject):
     def start(self):
         self._load_clients()
         self._bg(selfupdate.cleanup)
+        self._bg(desktop.refresh_launcher)
         if self.cfg.get("check_updates"):
             self._bg(selfupdate.check, self._update_found)
         if self._uri:
@@ -304,6 +306,9 @@ class Backend(QObject):
             status, text = "pinned", "Pinned"
         elif a.modified:
             status, text = "modified", "Changed by you"
+        elif a.needs:
+            more = f" and {len(a.needs) - 1} more" if len(a.needs) > 1 else ""
+            status, text, action = "modified", f"Needs {a.needs[0]}{more}", "find"
         else:
             status, text = "ok", "Up to date"
         return {
@@ -324,6 +329,10 @@ class Backend(QObject):
             "action": action,
             "folders": len(a.dirs),
             "busy": bool(e.busy),
+            "previous": a.previous,
+            "notes": bool(rel and rel.notes),
+            "outdated": a.outdated,
+            "needs": a.needs[0] if a.needs else "",
         }
 
     def _publish(self):
@@ -489,6 +498,7 @@ class Backend(QObject):
                 e.release = rel
             self._reload()
             self.backupsChanged.emit()
+            self.historyChanged.emit()
 
         self._bg(work, done)
 
@@ -503,6 +513,39 @@ class Backend(QObject):
         e = self._entries.get(key)
         if e and not e.busy:
             self._start_update(key, True, force=True)
+
+    @Slot(str)
+    def rollback(self, key):
+        e = self._entries.get(key)
+        client = self._client()
+        if not e or not client or e.busy or not e.addon.previous:
+            return
+        mgr = self._mgr(client)
+        addon = e.addon
+        e.busy = "Going back"
+        self._publish()
+
+        def done(rec, err):
+            e.busy = ""
+            if err:
+                self.toast.emit(f"{addon.name}: {err}", True)
+            else:
+                self.toast.emit(f"{addon.name} is back on {rec['version']} and pinned", False)
+            self._reload()
+            self.historyChanged.emit()
+
+        self._bg(lambda: mgr.rollback(addon.ref), done)
+
+    @Slot(str, result="QVariantMap")
+    def notesFor(self, key):
+        e = self._entries.get(key)
+        if not e or not e.release:
+            return {"title": "", "text": "", "markdown": False}
+        return {
+            "title": f"{e.addon.name} {e.release.version}",
+            "text": e.release.notes,
+            "markdown": e.addon.ref.startswith("gh:"),
+        }
 
     @Slot()
     def updateAll(self):
@@ -752,6 +795,7 @@ class Backend(QObject):
             else:
                 self._browse.patch(ref, installed=True)
                 self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
+                self.historyChanged.emit()
             if client is self._client():
                 self._reload()
             else:
@@ -915,6 +959,12 @@ class Backend(QObject):
         self.cfg.set("update_on_start", bool(on))
         self.settingsChanged.emit()
 
+    @Slot(str)
+    def setTheme(self, mode):
+        if mode in ("", "light", "dark"):
+            self.cfg.set("theme", mode)
+            self.settingsChanged.emit()
+
     @Slot(bool)
     def setCheckUpdates(self, on):
         self.cfg.set("check_updates", bool(on))
@@ -967,8 +1017,26 @@ class Backend(QObject):
         return __version__
 
     @Property(str, constant=True)
+    def appName(self):
+        return desktop.APP_NAME
+
+    @Property(str, constant=True)
+    def fullName(self):
+        return desktop.FULL_NAME
+
+    @Property(str, notify=settingsChanged)
     def themeMode(self):
-        return os.environ.get("WOWAM_THEME", "")
+        return os.environ.get("WOWAM_THEME") or self.cfg.get("theme")
+
+    @Property("QVariantList", notify=historyChanged)
+    def history(self):
+        out = []
+        for row in history.entries()[:15]:
+            when = time.strftime("%d %b, %H:%M", time.localtime(row.get("time", 0)))
+            old, new = row.get("old", ""), row.get("new", "")
+            change = f"{old} → {new}" if old else f"installed {new}"
+            out.append({"name": row.get("name", ""), "change": change, "where": row.get("client", ""), "when": when})
+        return out
 
     @Property(int, notify=changed)
     def currentIndex(self):
@@ -1098,7 +1166,7 @@ def run(uri=""):
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
     app = QGuiApplication(sys.argv[:1])
     app.setApplicationName("wowam")
-    app.setApplicationDisplayName("wowam")
+    app.setApplicationDisplayName(desktop.FULL_NAME)
     app.setDesktopFileName("wowam")
     app.setWindowIcon(QIcon(str(desktop.icon_source())))
     backend = Backend(uri)
