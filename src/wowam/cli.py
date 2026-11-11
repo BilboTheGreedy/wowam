@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from . import __version__, auras, backup, desktop, selfupdate
+from . import __version__, auras, backup, desktop, lists, selfupdate
 from .clients import discover
 from .config import Config
 from .manager import Manager, can_auto_update, needs_update, parse_refs, survey
@@ -191,7 +191,9 @@ def cmd_export(args, cfg):
 
 
 def cmd_import(args, cfg):
-    args.refs = parse_refs(" ".join(args.refs))
+    text = " ".join(args.refs)
+    url = lists.list_url(text)
+    args.refs = lists.fetch(url)["refs"] if url else parse_refs(text)
     return cmd_install(args, cfg)
 
 

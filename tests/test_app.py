@@ -122,6 +122,18 @@ class WindowTests(unittest.TestCase):
                     rows = backend.addons.rows()
                     self.assertEqual(rows[0]["name"], "Foo")
                     self.assertEqual(rows[0]["status"], "unknown")
+                    shown = []
+                    backend.listReady.connect(shown.append)
+                    backend._shared = [
+                        {"slug": "s", "name": "Setup", "by": "me", "game": "Retail", "about": "", "refs": ["gh:a/b"]}
+                    ]
+                    backend._shared_at = time.time()
+                    backend.sharedChanged.emit()
+                    self.assertEqual(backend.sharedLists[0]["count"], 1)
+                    backend.openShared("s")
+                    self.spin(qapp, lambda: False, 0.3)
+                    self.assertEqual(shown[0]["count"], 1)
+                    self.assertEqual(shown[0]["missing"], "gh:a/b")
                     window.setProperty("settingsOpen", True)
                     self.spin(qapp, lambda: False, 0.5)
                     found = list(problems)

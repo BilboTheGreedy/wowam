@@ -68,6 +68,14 @@ def final_url(url, timeout=20):
         return resp.geturl()
 
 
+def get_bytes(url, limit, headers=None, timeout=30):
+    with _request(url, headers, timeout=timeout) as resp:
+        data = resp.read(limit + 1)
+    if len(data) > limit:
+        raise HttpError(0, f"{urllib.request.urlparse(url).netloc} sent too much data")
+    return data
+
+
 def get_json(url, headers=None, etag=False, max_age=0, timeout=30):
     body_path = _cache_path(url, "http")
     meta_path = body_path.with_suffix(".meta")

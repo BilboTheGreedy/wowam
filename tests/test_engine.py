@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import shutil
 import subprocess
 
-from wowam import auras, backup, clients, installer, launch, manager, sources, toc
+from wowam import auras, backup, clients, installer, launch, lists, manager, sources, toc
 from wowam.sources import Release
 
 
@@ -424,3 +424,62 @@ class ExtraTests(Base):
             self.assertEqual(launch.plan(self.client)[0], ["lutris", "lutris:rungame/battlenet"])
         with mock.patch.object(launch.shutil, "which", lambda name: None):
             self.assertIsNone(launch.plan(self.client))
+
+
+class ListTests(unittest.TestCase):
+    def test_urls(self):
+        self.assertEqual(
+            lists.list_url("https://github.com/a/b/blob/main/lists/x.txt"),
+            "https://raw.githubusercontent.com/a/b/main/lists/x.txt",
+        )
+        self.assertEqual(
+            lists.list_url("https://gist.github.com/someone/0123abcd"),
+            "https://gist.githubusercontent.com/someone/0123abcd/raw",
+        )
+        self.assertEqual(lists.list_url("https://example.com/my.txt"), "https://example.com/my.txt")
+        self.assertIsNone(lists.list_url("https://github.com/BigWigsMods/BigWigs"))
+        self.assertIsNone(lists.list_url("https://github.com/a/b/blob/main/README.md"))
+        self.assertIsNone(lists.list_url("gh:a/b wowi:1"))
+        self.assertIsNone(lists.list_url("http://example.com/my.txt"))
+
+    def test_parse(self):
+        item = lists.parse("# name: Healer\n# by: me\n# for: Retail\n# note\ngh:a/b\nwowi:5, gh:a/b\n", "healer")
+        self.assertEqual(item["name"], "Healer")
+        self.assertEqual(item["by"], "me")
+        self.assertEqual(item["game"], "Retail")
+        self.assertEqual(item["refs"], ["gh:a/b", "wowi:5"])
+        self.assertEqual(lists.parse("gh:a/b", "my-list")["name"], "my list")
+
+    def test_fetch(self):
+        with mock.patch.object(lists.http, "get_bytes", return_value=b"# name: X\ngh:a/b\n"):
+            self.assertEqual(lists.fetch("https://example.com/x.txt")["refs"], ["gh:a/b"])
+        with mock.patch.object(lists.http, "get_bytes", return_value=b"hello"):
+            with self.assertRaises(sources.SourceError):
+                lists.fetch("https://example.com/x.txt")
+
+    def test_unpack(self):
+        import io
+        import tarfile
+
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+            for name, text in {
+                "repo-main/lists/b.txt": "# name: Beta\ngh:a/b\n",
+                "repo-main/lists/a.txt": "# name: Alpha\nwowi:1 wowi:2\n",
+                "repo-main/lists/empty.txt": "nothing\n",
+                "repo-main/README.md": "gh:x/y\n",
+                "repo-main/lists/sub/c.txt": "gh:x/y\n",
+            }.items():
+                data = text.encode()
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+        found = lists.unpack(buf.getvalue())
+        self.assertEqual([i["name"] for i in found], ["Alpha", "Beta"])
+        self.assertEqual(found[0]["refs"], ["wowi:1", "wowi:2"])
+
+    def test_share(self):
+        text = lists.template(["gh:a/b"], "Retail")
+        self.assertEqual(lists.parse(text)["refs"], ["gh:a/b"])
+        self.assertIn("value=", lists.share_url(text))
+        self.assertNotIn("value=", lists.share_url("x" * 7000))

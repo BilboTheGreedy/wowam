@@ -219,14 +219,14 @@ Item {
 
             Card {
                 title: "Addon list" + (backend.hasClient ? "  ·  " + backend.clientLabel : "")
-                hint: "Copy the list to move your addons to another install or computer, then paste it there."
+                hint: "The list works on every WoW version. Copy it to move your addons to another install or computer, or paste a list or a link to one that someone shared."
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
                     Field {
                         id: listField
                         Layout.fillWidth: true
-                        placeholderText: "Paste an addon list or several links"
+                        placeholderText: "Paste an addon list, several links, or a link to a shared list"
                         Accessible.name: "Addon list to install"
                     }
                     Btn {
@@ -236,7 +236,11 @@ Item {
                         onClicked: if (backend.installList(listField.text) > 0) listField.text = ""
                     }
                 }
-                Btn { text: "Copy my addon list"; iconName: "copy"; enabled: backend.hasClient; onClicked: backend.copyList() }
+                RowLayout {
+                    spacing: 8
+                    Btn { text: "Copy my addon list"; iconName: "copy"; enabled: backend.hasClient; onClicked: backend.copyList() }
+                    Btn { text: "Share it with other players"; iconName: "external"; enabled: backend.hasClient; onClicked: backend.shareList() }
+                }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 8

@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import __version__, auras, backup, desktop, history, http, launch, selfupdate, sources
+from .. import __version__, auras, backup, desktop, history, http, launch, lists, selfupdate, sources
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -112,6 +112,8 @@ class Backend(QObject):
     updateChanged = Signal()
     historyChanged = Signal()
     aurasChanged = Signal()
+    sharedChanged = Signal()
+    listReady = Signal("QVariant")
 
     def __init__(self, uri=""):
         super().__init__()
@@ -127,6 +129,9 @@ class Backend(QObject):
         self._filter = ""
         self._loading = False
         self._searching = False
+        self._shared = []
+        self._shared_at = 0
+        self._shared_busy = False
         self._search_gen = 0
         self._searched = False
         self._orphans = None
@@ -812,6 +817,9 @@ class Backend(QObject):
         text = text.strip()
         self._search_gen += 1
         gen = self._search_gen
+        if client and lists.list_url(text):
+            self.openListUrl(text)
+            text = ""
         if not client or not text:
             self._found = []
             self._browse.sync([])
@@ -917,6 +925,9 @@ class Backend(QObject):
 
     @Slot(str, result=int)
     def installList(self, text):
+        if lists.list_url(text):
+            self.openListUrl(text)
+            return 1
         refs = parse_refs(text)
         for ref in refs:
             self._install(ref, quiet=True)
@@ -932,6 +943,76 @@ class Backend(QObject):
         refs = self._mgr(client).refs()
         QGuiApplication.clipboard().setText(" ".join(refs))
         self.toast.emit(f"Copied {len(refs)} addons to the clipboard", False)
+
+    @Property("QVariantList", notify=sharedChanged)
+    def sharedLists(self):
+        keys = ("slug", "name", "by", "game", "about")
+        return [{**{k: i[k] for k in keys}, "count": len(i["refs"])} for i in self._shared]
+
+    @Property(str, constant=True)
+    def listsPage(self):
+        return lists.PAGE
+
+    @Slot()
+    def loadShared(self):
+        if self._shared_busy or time.time() - self._shared_at < 3600:
+            return
+        self._shared_busy = True
+
+        def done(result, err):
+            self._shared_busy = False
+            if result is not None:
+                self._shared = result
+                self._shared_at = time.time()
+                self.sharedChanged.emit()
+
+        self._bg(lists.shared, done)
+
+    def _show_list(self, item):
+        client = self._client()
+        have = set(self._mgr(client).refs()) if client else set()
+        missing = [r for r in item["refs"] if r not in have]
+        self.listReady.emit({
+            "name": item["name"],
+            "by": item["by"],
+            "game": item["game"],
+            "about": item["about"],
+            "refs": [{"ref": r, "have": r in have} for r in item["refs"]],
+            "missing": " ".join(missing),
+            "count": len(missing),
+        })
+
+    @Slot(str)
+    def openShared(self, slug):
+        item = next((i for i in self._shared if i["slug"] == slug), None)
+        if item:
+            self._show_list(item)
+
+    @Slot(str)
+    def openListUrl(self, text):
+        url = lists.list_url(text)
+        if not url:
+            return
+
+        def done(result, err):
+            if err:
+                self.toast.emit(err, True)
+            else:
+                self._show_list(result)
+
+        self._bg(lambda: lists.fetch(url), done)
+
+    @Slot()
+    def shareList(self):
+        client = self._client()
+        refs = self._mgr(client).refs() if client else []
+        if not refs:
+            self.toast.emit("Install some addons first, then share the list", True)
+            return
+        text = lists.template(refs, client.label)
+        QGuiApplication.clipboard().setText(text)
+        self.openUrl(lists.share_url(text))
+        self.toast.emit("Opening GitHub. Your list is also on the clipboard.", False)
 
     @Slot()
     def backupNow(self):

@@ -109,11 +109,55 @@ ApplicationWindow {
     Connections {
         target: backend
         function onToast(message, isError) { toast.show(message, isError) }
+        function onListReady(item) { listDialog.show(item) }
         function onShowBrowse(text) {
             window.settingsOpen = false
             addonsPage.browseFor(text)
             window.raise()
             window.requestActivate()
+        }
+    }
+
+    Modal {
+        id: listDialog
+        property var item: ({ refs: [], count: 0, missing: "" })
+        function show(data) {
+            item = data
+            title = data.name
+            message = [data.by ? "by " + data.by : "", data.game, data.about].filter(s => s).join("  ·  ")
+            open()
+        }
+        width: Math.min(520, parent ? parent.width - 48 : 520)
+        confirmText: item.count === 0 ? "Nothing to install" : "Install " + item.count + (item.count === 1 ? " addon" : " addons") + " on " + backend.clientLabel
+        confirmEnabled: item.count > 0 && backend.hasClient
+        onConfirmed: { backend.installList(item.missing); close() }
+        ListView {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, 300)
+            clip: true
+            spacing: 4
+            model: listDialog.item.refs
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            delegate: RowLayout {
+                id: refRow
+                required property var modelData
+                width: ListView.view.width - 12
+                spacing: 8
+                Text {
+                    Layout.fillWidth: true
+                    text: refRow.modelData.ref
+                    color: refRow.modelData.have ? Theme.sub : Theme.text
+                    font.pixelSize: Theme.body
+                    elide: Text.ElideMiddle
+                }
+                Text {
+                    visible: refRow.modelData.have
+                    text: "installed"
+                    color: Theme.sub
+                    font.pixelSize: Theme.small
+                }
+            }
         }
     }
 

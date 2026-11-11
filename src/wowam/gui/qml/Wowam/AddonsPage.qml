@@ -7,6 +7,7 @@ Item {
     id: root
     property int tab: 0
     signal addFolderRequested()
+    onTabChanged: if (tab === 1) backend.loadShared()
 
     function clientChanged() {
         if (browseField.text.trim().length > 0) backend.search(browseField.text)
@@ -328,8 +329,88 @@ Item {
                             opacity: backend.searching ? 0.4 : 1
                             delegate: BrowseRow { width: results.width - (results.ScrollBar.vertical.visible ? 12 : 0) }
                         }
+                        ListView {
+                            id: setups
+                            anchors.fill: parent
+                            visible: results.count === 0 && !backend.searching && !backend.searched && count > 0
+                            topMargin: 18
+                            bottomMargin: 20
+                            spacing: 6
+                            clip: true
+                            model: backend.sharedLists
+                            boundsBehavior: Flickable.StopAtBounds
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            header: ColumnLayout {
+                                width: setups.width
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: "Shared setups"
+                                        color: Theme.text
+                                        font.pixelSize: 16
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Btn { text: "Share mine"; iconName: "external"; onClicked: backend.shareList() }
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    Layout.bottomMargin: 10
+                                    text: "Addon lists published by other players. Open one to see what is in it before installing."
+                                    color: Theme.sub
+                                    font.pixelSize: Theme.body
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                            delegate: Rectangle {
+                                id: setup
+                                required property var modelData
+                                width: setups.width - (setups.ScrollBar.vertical.visible ? 12 : 0)
+                                height: 62
+                                radius: 12
+                                color: setupHover.hovered ? Theme.tint(Theme.sub, 0.08) : Theme.raised
+                                border.color: Theme.line
+                                Accessible.role: Accessible.Button
+                                Accessible.name: setup.modelData.name
+                                HoverHandler { id: setupHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: backend.openShared(setup.modelData.slug) }
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 16
+                                    anchors.rightMargin: 16
+                                    spacing: 12
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: setup.modelData.name
+                                            color: Theme.text
+                                            font.pixelSize: Theme.body
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: [setup.modelData.by ? "by " + setup.modelData.by : "", setup.modelData.game, setup.modelData.about].filter(s => s).join("  ·  ")
+                                            visible: text !== ""
+                                            color: Theme.sub
+                                            font.pixelSize: Theme.small
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                    Text {
+                                        text: setup.modelData.count + (setup.modelData.count === 1 ? " addon" : " addons")
+                                        color: Theme.sub
+                                        font.pixelSize: Theme.small
+                                    }
+                                }
+                            }
+                        }
                         Empty {
-                            visible: results.count === 0 && !backend.searching && !backend.searched
+                            visible: results.count === 0 && !backend.searching && !backend.searched && setups.count === 0
                             iconName: "globe"
                             heading: "Add an addon to " + backend.clientLabel
                             detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", Wago Addons" : "") + (backend.curseKey ? ", CurseForge" : "") + "." + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
