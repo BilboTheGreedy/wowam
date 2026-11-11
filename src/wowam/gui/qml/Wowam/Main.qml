@@ -96,8 +96,27 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 currentIndex: window.settingsOpen ? 1 : 0
-                AddonsPage { id: addonsPage; onAddFolderRequested: folderDialog.open() }
+                AddonsPage { id: addonsPage; onAddFolderRequested: folderDialog.open(); onZipRequested: zipDialog.open() }
                 SettingsPage { onAddFolderRequested: folderDialog.open(); onTourRequested: tour.start() }
+            }
+        }
+    }
+
+    FileDialog {
+        id: zipDialog
+        title: "Choose an addon zip file"
+        nameFilters: ["Zip files (*.zip)"]
+        onAccepted: backend.installFile(selectedFile.toString())
+    }
+
+    DropArea {
+        anchors.fill: parent
+        enabled: backend.hasClient
+        onEntered: (drag) => { drag.accepted = drag.hasUrls }
+        onDropped: (drop) => {
+            for (var i = 0; i < drop.urls.length; i++) {
+                var u = drop.urls[i].toString()
+                if (u.toLowerCase().endsWith(".zip")) backend.installFile(u)
             }
         }
     }
@@ -136,7 +155,7 @@ ApplicationWindow {
             },
             {
                 title: "Find more addons",
-                text: "In Browse, search by name or paste a link from GitHub, WoWInterface, CurseForge or Wago. Any GitHub addon link works, and the addon is kept up to date from then on."
+                text: "In Browse, search by name or paste a link from GitHub, WoWInterface, CurseForge or Wago. Any GitHub addon link works, and the addon is kept up to date from then on. You can also drop a downloaded zip file onto the window."
             },
             {
                 title: "Shared setups",
@@ -303,17 +322,23 @@ ApplicationWindow {
 
     Modal {
         id: listDialog
-        property var item: ({ refs: [], count: 0, missing: "" })
+        property var item: ({ refs: [], count: 0, missing: "", url: "", following: false, all: "" })
+        property bool wantFollow: false
         function show(data) {
             item = data
+            wantFollow = false
             title = data.name
             message = [data.by ? "by " + data.by : "", data.game, data.about].filter(s => s).join("  ·  ")
             open()
         }
         width: Math.min(520, parent ? parent.width - 48 : 520)
-        confirmText: item.count === 0 ? "Nothing to install" : "Install " + item.count + (item.count === 1 ? " addon" : " addons") + " on " + backend.clientLabel
-        confirmEnabled: item.count > 0 && backend.hasClient
-        onConfirmed: { backend.installList(item.missing); close() }
+        confirmText: item.count === 0 ? (wantFollow ? "Follow" : "Nothing to install") : "Install " + item.count + (item.count === 1 ? " addon" : " addons") + " on " + backend.clientLabel
+        confirmEnabled: (item.count > 0 || wantFollow) && backend.hasClient
+        onConfirmed: {
+            if (wantFollow) backend.follow(item.url, item.name, item.all)
+            if (item.count > 0) backend.installList(item.missing)
+            close()
+        }
         ListView {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(contentHeight, 300)
@@ -340,6 +365,25 @@ ApplicationWindow {
                     color: Theme.sub
                     font.pixelSize: Theme.small
                 }
+            }
+        }
+        RowLayout {
+            visible: listDialog.item.url !== ""
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            spacing: 10
+            Toggle {
+                visible: !listDialog.item.following
+                value: listDialog.wantFollow
+                Accessible.name: "Follow this setup"
+                onRequested: (on) => listDialog.wantFollow = on
+            }
+            Text {
+                Layout.fillWidth: true
+                text: listDialog.item.following ? "You follow this setup." : "Follow this setup, and tell me when addons are added to it or dropped"
+                color: Theme.sub
+                font.pixelSize: Theme.small
+                wrapMode: Text.WordWrap
             }
         }
     }

@@ -525,3 +525,29 @@ class PublishTests(unittest.TestCase):
         with mock.patch.object(sources, "_cli_token", return_value=""), mock.patch.dict(sources._memo, clear=True):
             with self.assertRaises(sources.SourceError):
                 lists.publish(Cfg(), ["gh:a/b"], "x")
+
+
+class TidyTests(unittest.TestCase):
+    def test_names(self):
+        self.assertEqual(toc.tidy("Questie v12.7.0"), "Questie")
+        self.assertEqual(toc.tidy("|cffffe00a<|r|cffff7d0aDBM Core|r|cffffe00a>|r Options GUI"), "DBM Core")
+        self.assertEqual(toc.tidy("AtlasLoot Prettier Journal [by bitekenny]"), "AtlasLoot Prettier Journal")
+        self.assertEqual(toc.tidy("Bartender4"), "Bartender4")
+        self.assertEqual(toc.tidy("Details! Damage Meter"), "Details! Damage Meter")
+
+
+class FileInstallTests(unittest.TestCase):
+    def test_zip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            client = clients.Client(home / "wow" / "_retail_", "_retail_", "wow", "12.0.0.1", "mainline", "Retail")
+            client.addons_dir.mkdir(parents=True)
+            make_zip(home / "a.zip", {"Foo/Foo.toc": "## Title: Foo v1.2.3\n## Version: 1.2.3\n", "Foo/x.lua": "x"})
+            with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(home / "data")}):
+                mgr = manager.Manager(client, Cfg())
+                rec = mgr.install_file(home / "a.zip")
+            self.assertEqual((rec["name"], rec["version"], rec["dirs"]), ("Foo", "1.2.3", ["Foo"]))
+            self.assertTrue((client.addons_dir / "Foo" / "x.lua").is_file())
+            with self.assertRaises(sources.SourceError):
+                (home / "b.zip").write_text("no")
+                mgr.install_file(home / "b.zip")

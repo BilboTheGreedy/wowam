@@ -246,6 +246,23 @@ Item {
                     Btn { text: "Copy my addon list"; iconName: "copy"; enabled: backend.hasClient; onClicked: backend.copyList() }
                     Btn { text: "Share it as a link"; iconName: "link"; enabled: backend.hasClient; onClicked: backend.openShare() }
                 }
+                Repeater {
+                    model: backend.follows
+                    RowLayout {
+                        id: followRow
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            Layout.fillWidth: true
+                            text: "Following " + followRow.modelData.name + "  ·  " + followRow.modelData.count + " addons"
+                            color: Theme.text
+                            font.pixelSize: Theme.body
+                            elide: Text.ElideRight
+                        }
+                        Btn { text: "Stop following"; kind: "ghost"; onClicked: backend.unfollow(followRow.modelData.url) }
+                    }
+                }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 8

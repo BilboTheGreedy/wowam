@@ -13,6 +13,7 @@ from .. import __version__, auras, backup, desktop, history, http, launch, lists
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
+from ..known import KNOWN
 from ..manager import Manager, can_auto_update, check_one, needs_update, parse_refs, survey
 from ..sources import SourceError
 
@@ -116,6 +117,7 @@ class Backend(QObject):
     listReady = Signal("QVariant")
     shareRequested = Signal("QVariant")
     published = Signal(str)
+    followsChanged = Signal()
 
     def __init__(self, uri=""):
         super().__init__()
@@ -132,6 +134,12 @@ class Backend(QObject):
         self._loading = False
         self._searching = False
         self._shared = []
+        self._setup_changes = {}
+        self.window = None
+        self._tick = QTimer(self)
+        self._tick.setInterval(2 * 3600 * 1000)
+        self._tick.timeout.connect(self._periodic)
+        self._tick.start()
         self._shared_at = 0
         self._shared_busy = False
         self._search_gen = 0
@@ -396,9 +404,14 @@ class Backend(QObject):
 
         self._bg(work, done)
 
+    def _periodic(self):
+        if self.window is not None and self.window.isVisible() and not self.checking and not self.working:
+            self.refresh()
+
     @Slot()
     def refresh(self):
         client = self._client()
+        self._check_follows(client)
         self._gen += 1
         gen = self._gen
         if not client:
@@ -970,7 +983,7 @@ class Backend(QObject):
 
         self._bg(lists.shared, done)
 
-    def _show_list(self, item):
+    def _show_list(self, item, url=""):
         client = self._client()
         have = set(self._mgr(client).refs()) if client else set()
         missing = [r for r in item["refs"] if r not in have]
@@ -981,14 +994,17 @@ class Backend(QObject):
             "about": item["about"],
             "refs": [{"ref": r, "have": r in have} for r in item["refs"]],
             "missing": " ".join(missing),
+            "all": " ".join(item["refs"]),
             "count": len(missing),
+            "url": url,
+            "following": any(f["url"] == url for f in self._follow_list(client)),
         })
 
     @Slot(str)
     def openShared(self, slug):
         item = next((i for i in self._shared if i["slug"] == slug), None)
         if item:
-            self._show_list(item)
+            self._show_list(item, lists.shared_url(slug))
 
     @Slot(str)
     def openListUrl(self, text):
@@ -1000,9 +1016,158 @@ class Backend(QObject):
             if err:
                 self.toast.emit(err, True)
             else:
-                self._show_list(result)
+                self._show_list(result, url)
 
         self._bg(lambda: lists.fetch(url), done)
+
+    def _follow_list(self, client):
+        return list(self.cfg.get("follows").get(client.id, [])) if client else []
+
+    def _save_follows(self, client, items):
+        data = dict(self.cfg.get("follows"))
+        if items:
+            data[client.id] = items
+        else:
+            data.pop(client.id, None)
+        self.cfg.set("follows", data)
+        self.followsChanged.emit()
+
+    @Property("QVariantList", notify=followsChanged)
+    def follows(self):
+        return [{"url": f["url"], "name": f["name"], "count": len(f["refs"])} for f in self._follow_list(self._client())]
+
+    @Property("QVariantList", notify=followsChanged)
+    def setupChanges(self):
+        client = self._client()
+        return list(self._setup_changes.get(client.id, [])) if client else []
+
+    @Slot(str, str, str)
+    def follow(self, url, name, text):
+        client = self._client()
+        refs = parse_refs(text)
+        if not client or not url.startswith("https://") or not refs:
+            return
+        items = [f for f in self._follow_list(client) if f["url"] != url]
+        items.append({"url": url, "name": name or "Setup", "refs": refs})
+        self._save_follows(client, items)
+        self.toast.emit(f"Following {name or 'this setup'}", False)
+
+    @Slot(str)
+    def unfollow(self, url):
+        client = self._client()
+        if not client:
+            return
+        self._drop_change(client, url)
+        self._save_follows(client, [f for f in self._follow_list(client) if f["url"] != url])
+
+    def _drop_change(self, client, url):
+        left = [c for c in self._setup_changes.get(client.id, []) if c["url"] != url]
+        self._setup_changes[client.id] = left
+
+    def _check_follows(self, client):
+        follows = self._follow_list(client)
+        if not follows:
+            return
+
+        def work():
+            out = []
+            for f in follows:
+                try:
+                    item = lists.fetch(f["url"])
+                except SourceError:
+                    continue
+                added = [r for r in item["refs"] if r not in f["refs"]]
+                removed = [r for r in f["refs"] if r not in item["refs"]]
+                if added or removed:
+                    out.append({
+                        "url": f["url"], "name": item["name"] or f["name"],
+                        "added": added, "removed": removed, "refs": item["refs"],
+                    })
+            return out
+
+        def done(result, err):
+            if result is not None:
+                self._setup_changes[client.id] = result
+                self.followsChanged.emit()
+
+        self._bg(work, done)
+
+    def _settle(self, client, url):
+        change = next((c for c in self._setup_changes.get(client.id, []) if c["url"] == url), None)
+        if not change:
+            return None
+        items = self._follow_list(client)
+        for f in items:
+            if f["url"] == url:
+                f["refs"] = change["refs"]
+                f["name"] = change["name"]
+        self._drop_change(client, url)
+        self._save_follows(client, items)
+        return change
+
+    @Slot(str, bool)
+    def applySetup(self, url, remove):
+        client = self._client()
+        change = self._settle(client, url) if client else None
+        if not change:
+            return
+        have = set(self._mgr(client).refs())
+        for ref in change["added"]:
+            if ref not in have:
+                self._install(ref, quiet=True)
+        if remove:
+            for ref in change["removed"]:
+                if ref in have:
+                    self.removeAddon(ref)
+
+    @Slot(str)
+    def dismissSetup(self, url):
+        client = self._client()
+        if client:
+            self._settle(client, url)
+
+    @Slot(str)
+    def installFile(self, path):
+        client = self._client()
+        if path.startswith("file:"):
+            path = QUrl(path).toLocalFile()
+        if not client or not path:
+            return
+        mgr = self._mgr(client)
+
+        def done(rec, err):
+            if err:
+                self.toast.emit(err, True)
+            else:
+                self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
+                self.historyChanged.emit()
+            self._reload()
+
+        self._bg(lambda: mgr.install_file(path), done)
+
+    @Slot(str)
+    def installDep(self, name):
+        client = self._client()
+        if not client or not name:
+            return
+        self.toast.emit(f"Looking for {name}", False)
+
+        def work():
+            if name in KNOWN:
+                return KNOWN[name]
+            try:
+                hits = sources.wowi_by_dir(name)
+            except SourceError:
+                hits = []
+            return f"wowi:{hits[0]['UID']}" if hits else ""
+
+        def done(ref, err):
+            if ref:
+                self._install(ref)
+            else:
+                self.showBrowse.emit(name)
+
+        self._bg(work, done)
 
     @Slot()
     def openShare(self):
@@ -1499,6 +1664,7 @@ def run(uri="", hidden=False):
             Path(smoke).write_text("load failed\n" + "\n".join(problems))
         return 1
     window = engine.rootObjects()[0]
+    backend.window = window
     tray = None
     if QSystemTrayIcon.isSystemTrayAvailable():
         backend.tray_available = True

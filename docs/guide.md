@@ -12,7 +12,7 @@ Lists every addon in the selected install. Addons you installed by hand are matc
 
 - **Update** on a row, or **Update all** at the top
 - **OUT OF DATE** means the addon was made for an older game version. It may still work.
-- **Needs X** means an addon it depends on is missing. Click it to find it.
+- **Needs X** means an addon it depends on is missing. "Find it" installs it when the app knows where it is, otherwise it searches for it.
 - **Changed by you** means files were edited after install. These are skipped by Update all so your changes are not lost.
 
 The menu on each row:
@@ -40,9 +40,17 @@ Search by name or paste a link. These work:
 - `https://addons.wago.io/addons/name` or `wago:name` (needs a Wago key)
 - `https://www.curseforge.com/wow/addons/name` or `cf:name` (needs a CurseForge key)
 
+**From a zip file**: drop a zip onto the window, or use "From a zip file" in Browse. The app installs it and then tries to find where it comes from, so it can get updates. If it cannot, the addon stays as it is and you can set a source from its menu.
+
 "Only addons listed for ..." hides results the author has not marked for your game version.
 
 When the search box is empty, Browse shows the shared setups. See the [readme](../README.md#shared-addon-setups).
+
+## Following a setup
+
+When you open a shared setup you can turn on "Follow this setup". From then on the app looks at the setup when it checks for updates. If the author added or dropped addons you get a notice on the Installed tab with "Review". Applying installs the new ones. Dropped ones are only removed if you tick that.
+
+Settings, Addon list shows what you follow and has "Stop following".
 
 ## Sources and keys
 
@@ -67,6 +75,8 @@ A backup is a zip of the WTF folder, where the game keeps addon settings, keybin
 Auras you imported from wago.io are checked for new versions. The app writes a small helper addon called WowamCompanion, and WeakAuras then offers the updates in game the next time you log in or reload. Turn it off in Settings if you do not want it.
 
 ## Automatic things
+
+While the window is open the app checks for updates when it starts, when you switch installs, when you press refresh, and every two hours.
 
 All in Settings, all off by default except the update notice and WeakAuras:
 

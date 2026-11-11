@@ -7,6 +7,7 @@ Item {
     id: root
     property int tab: 0
     signal addFolderRequested()
+    signal zipRequested()
     onTabChanged: if (tab === 1) backend.loadShared()
 
     function clientChanged() {
@@ -178,6 +179,36 @@ Item {
             }
         }
 
+        Repeater {
+            model: backend.setupChanges
+            Rectangle {
+                id: changeStrip
+                required property var modelData
+                Layout.fillWidth: true
+                Layout.topMargin: 14
+                implicitHeight: 44
+                radius: Theme.radius
+                color: Theme.accentSoft
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 8
+                    spacing: 10
+                    Icon { shape: "copy"; size: 16; color: Theme.accentText }
+                    Text {
+                        Layout.fillWidth: true
+                        text: changeStrip.modelData.name + " changed: "
+                            + [changeStrip.modelData.added.length ? changeStrip.modelData.added.length + " added" : "",
+                               changeStrip.modelData.removed.length ? changeStrip.modelData.removed.length + " dropped" : ""].filter(s => s).join(", ")
+                        color: Theme.text
+                        font.pixelSize: Theme.body
+                        elide: Text.ElideRight
+                    }
+                    Btn { text: "Review"; implicitHeight: 30; onClicked: setupDialog.show(changeStrip.modelData) }
+                }
+            }
+        }
+
         Rectangle {
             visible: backend.auraCount > 0
             Layout.fillWidth: true
@@ -245,7 +276,7 @@ Item {
                             menu.popup(anchor, 0, anchor.height + 4)
                         }
                         onLinkRequested: (row) => linkDialog.show(row)
-                        onFindRequested: (name) => root.browseFor(name)
+                        onFindRequested: (name) => backend.installDep(name)
                     }
                 }
                 Empty {
@@ -284,6 +315,12 @@ Item {
                                 interval: 500
                                 onTriggered: if (browseField.text.trim().length === 0 || browseField.text.trim().length > 2) backend.search(browseField.text)
                             }
+                        }
+                        Btn {
+                            implicitHeight: 42
+                            text: "From a zip file"
+                            iconName: "folder"
+                            onClicked: root.zipRequested()
                         }
                         Btn {
                             implicitHeight: 42
@@ -531,6 +568,70 @@ Item {
         confirmText: "Remove"
         danger: true
         onConfirmed: { backend.removeAddon(key); close() }
+    }
+
+    Modal {
+        id: setupDialog
+        property var change: ({ url: "", name: "", added: [], removed: [] })
+        property bool removeToo: false
+        function show(data) {
+            change = data
+            removeToo = false
+            title = data.name + " changed"
+            open()
+        }
+        message: "The setup you follow was updated by its author."
+        cancelText: "Later"
+        confirmText: "Apply"
+        onConfirmed: { backend.applySetup(change.url, removeToo); close() }
+        Repeater {
+            model: setupDialog.change.added
+            Text {
+                required property string modelData
+                Layout.fillWidth: true
+                text: "+  " + modelData
+                color: Theme.ok
+                font.pixelSize: Theme.body
+                elide: Text.ElideMiddle
+            }
+        }
+        Repeater {
+            model: setupDialog.change.removed
+            Text {
+                required property string modelData
+                Layout.fillWidth: true
+                text: "−  " + modelData
+                color: Theme.sub
+                font.pixelSize: Theme.body
+                elide: Text.ElideMiddle
+            }
+        }
+        RowLayout {
+            visible: setupDialog.change.removed.length > 0
+            Layout.fillWidth: true
+            spacing: 10
+            Toggle {
+                value: setupDialog.removeToo
+                Accessible.name: "Also remove dropped addons"
+                onRequested: (on) => setupDialog.removeToo = on
+            }
+            Text {
+                Layout.fillWidth: true
+                text: "Also remove the dropped addons from " + backend.clientLabel
+                color: Theme.text
+                font.pixelSize: Theme.body
+                wrapMode: Text.WordWrap
+            }
+        }
+        Text {
+            Layout.fillWidth: true
+            text: "<a href='x'>Ignore this change</a>"
+            textFormat: Text.StyledText
+            color: Theme.sub
+            linkColor: Theme.accentText
+            font.pixelSize: Theme.small
+            onLinkActivated: { backend.dismissSetup(setupDialog.change.url); setupDialog.close() }
+        }
     }
 
     Modal {

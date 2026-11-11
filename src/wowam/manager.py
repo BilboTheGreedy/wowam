@@ -258,7 +258,7 @@ class Manager:
                     Addon(
                         key=ref,
                         ref=ref,
-                        name=rec.get("name") or ref,
+                        name=toc.tidy(rec.get("name", "")) or ref,
                         version=rec.get("version", ""),
                         dirs=dirs,
                         managed=True,
@@ -283,7 +283,7 @@ class Manager:
                 out.append(
                     Addon(
                         key=f"local:{root}",
-                        name=toc.clean(fields.get("title", "")) or root,
+                        name=toc.tidy(fields.get("title", "")) or root,
                         version=fields.get("version", ""),
                         dirs=sorted(dirs),
                         author=fields.get("author", ""),
@@ -411,11 +411,11 @@ class Manager:
                     for d in old.get("dirs", []):
                         if d not in names:
                             installer.remove(self.client.addons_dir / d)
-                main = min(names, key=len)
+                main = self._main(names, ref)
                 fields = toc.read(self.client.addons_dir / main, self.client.flavor)
                 hashes, stamps = self._fingerprints(names)
                 self.state.addons[ref] = {
-                    "name": release.name or toc.clean(fields.get("title", "")) or main,
+                    "name": release.name or toc.tidy(fields.get("title", "")) or main,
                     "version": release.version or fields.get("version", ""),
                     "dirs": names,
                     "hashes": hashes,
@@ -440,6 +440,49 @@ class Manager:
                 zip_path.unlink()
             except OSError:
                 pass
+
+    def _main(self, names, ref=""):
+        flat = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())
+        want = flat(ref.rsplit("/", 1)[-1].split(":")[-1]) if ref else ""
+        for n in names:
+            if want and flat(n) == want:
+                return n
+        if len(names) > 1:
+            wanted = {}
+            for n in names:
+                for dep in toc.deps(toc.read(self.client.addons_dir / n, self.client.flavor)):
+                    if dep in names and dep != n:
+                        wanted[dep] = wanted.get(dep, 0) + 1
+            if wanted:
+                return max(sorted(wanted), key=lambda d: wanted[d])
+        return min(names, key=len)
+
+    def install_file(self, path):
+        with self.lock:
+            self.state.load()
+            try:
+                names = installer.install_zip(path, self.client.addons_dir)
+            except (installer.InstallError, OSError) as e:
+                raise SourceError(str(e)) from e
+            main = self._main(names)
+            fields = toc.read(self.client.addons_dir / main, self.client.flavor)
+            title = toc.tidy(fields.get("title", "")) or main
+            version = fields.get("version", "")
+            for ref, rec in self.state.addons.items():
+                if set(rec.get("dirs", [])) & set(names):
+                    dirs = sorted(set(rec.get("dirs", [])) | set(names))
+                    old = rec.get("version", "")
+                    rec["dirs"] = dirs
+                    rec["hashes"], rec["stamps"] = self._fingerprints(dirs)
+                    rec["version"] = version or old
+                    rec["time"] = int(time.time())
+                    title = rec.get("name") or title
+                    history.add(self.client.label, title, old, rec["version"])
+                    break
+            else:
+                history.add(self.client.label, title, "", version)
+            self.state.save()
+            return {"name": title, "version": version, "dirs": names}
 
     def uninstall(self, addon, keep_files=False):
         with self.lock:

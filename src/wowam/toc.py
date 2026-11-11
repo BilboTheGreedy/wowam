@@ -24,6 +24,16 @@ def clean(text):
     return COLOR_RE.sub("", text or "").strip()
 
 
+def tidy(text):
+    t = clean(text)
+    m = re.match(r"<([^<>]+)>", t)
+    if m:
+        t = m.group(1)
+    t = re.sub(r"\[[^\]]*\]", "", t)
+    t = re.sub(r"\s+v?\d+(\.\d+)+\S*$", "", t.strip())
+    return " ".join(t.split())
+
+
 def parse(path):
     fields = {}
     try:

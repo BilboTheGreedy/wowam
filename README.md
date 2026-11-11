@@ -6,7 +6,8 @@ A free addon manager with a real GUI for Linux, Windows and macOS. Works with Re
 
 - finds your WoW installs on its own, also under Lutris, Steam and Wine
 - installs and updates addons from GitHub, WoWInterface and Tukui with no account or key
-- **share a whole addon setup with one link**, or install somebody else's
+- **share a whole addon setup with one link**, or install and follow somebody else's
+- drop a downloaded zip onto the window to install it
 - changelogs, pin a version, go back to the previous one
 - backs up your settings before it updates anything
 - keeps WeakAuras from wago.io up to date
@@ -47,6 +48,7 @@ Install someone's whole addon setup in one click, or share your own with a link.
 
 - Open Browse. Shared setups are listed there. Click one to see what is in it, then install.
 - Or paste a link somebody sent you into the search box.
+- Turn on "Follow this setup" and the app tells you when the author adds or drops an addon, so a guild or raid team stays on the same addons.
 
 ![setup preview](docs/setup-preview.png)
 
@@ -85,7 +87,7 @@ Everything else is explained in the [guide](docs/guide.md): addon sources and ke
 
 **Does it touch my settings?** It only changes the AddOns folder. Before an update it makes a backup of the WTF folder, where the game keeps your settings.
 
-**An addon I want is only on CurseForge.** Check if the author also has it on GitHub, most do. Paste that link into Browse.
+**An addon I want is only on CurseForge.** Download the zip in your browser and drop it onto the window. If the author also has it on GitHub, paste that link into Browse instead and it will get updates.
 
 **Something is broken.** Open an [issue](https://github.com/BilboTheGreedy/wowam/issues).
 

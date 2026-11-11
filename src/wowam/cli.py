@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 from . import __version__, auras, backup, desktop, lists, selfupdate
@@ -58,6 +59,14 @@ def cmd_install(args, cfg):
     mgr = Manager(c, cfg)
     failed = 0
     for text in args.refs:
+        if text.lower().endswith(".zip") and os.path.isfile(text):
+            try:
+                rec = mgr.install_file(text)
+                print(f"installed {rec['name']} {rec['version']}")
+            except SourceError as e:
+                print(f"{text}: {e}")
+                failed += 1
+            continue
         ref = parse_ref(text)
         if not ref:
             print(f"{text}: not a known link")

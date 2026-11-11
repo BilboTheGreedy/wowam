@@ -103,6 +103,10 @@ def _line(text):
     return " ".join(str(text or "").split())[:120]
 
 
+def shared_url(slug):
+    return f"https://raw.githubusercontent.com/{REPO}/main/lists/{slug}.txt"
+
+
 def template(refs, game="", name="My setup", by="", about=""):
     head = f"# name: {_line(name)}\n# by: {_line(by)}\n# for: {_line(game)}\n# about: {_line(about)}\n"
     return head + "\n".join(refs) + "\n"

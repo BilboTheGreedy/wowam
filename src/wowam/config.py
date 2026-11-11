@@ -19,6 +19,7 @@ DEFAULTS = {
     "aura_updates": True,
     "welcomed": False,
     "gists": {},
+    "follows": {},
 }
 
 
