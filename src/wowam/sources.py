@@ -185,6 +185,29 @@ def _gh_pick(release, client):
     return best["browser_download_url"]
 
 
+def _gh_branch(ident, cfg):
+    try:
+        commits = http.get_json(f"https://api.github.com/repos/{ident}/commits?per_page=1", _gh_headers(cfg), etag=True)
+    except HttpError as e:
+        if e.status == 409:
+            raise SourceError(f"{ident} is empty on GitHub.") from e
+        raise _gh_error(e, ident) from e
+    if not isinstance(commits, list) or not commits:
+        raise SourceError(f"{ident} is empty on GitHub.")
+    sha = commits[0]["sha"]
+    info = commits[0].get("commit") or {}
+    day = ((info.get("committer") or {}).get("date") or "")[:10]
+    return Release(
+        version=f"{day}-{sha[:7]}" if day else sha[:7],
+        url=f"https://api.github.com/repos/{ident}/zipball/{sha}",
+        name="",
+        author=ident.split("/")[0],
+        page=f"https://github.com/{ident}",
+        headers=_gh_headers(cfg),
+        notes=(info.get("message") or "").strip()[:8000],
+    )
+
+
 def _gh_latest(ident, client, cfg, channel):
     try:
         releases = http.get_json(
@@ -193,7 +216,7 @@ def _gh_latest(ident, client, cfg, channel):
     except HttpError as e:
         raise _gh_error(e, ident) from e
     if not isinstance(releases, list) or not releases:
-        raise SourceError(f"{ident} has no releases on GitHub.")
+        return _gh_branch(ident, cfg)
     for release in releases:
         if release.get("draft"):
             continue

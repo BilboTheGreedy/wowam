@@ -483,3 +483,17 @@ class ListTests(unittest.TestCase):
         self.assertEqual(lists.parse(text)["refs"], ["gh:a/b"])
         self.assertIn("value=", lists.share_url(text))
         self.assertNotIn("value=", lists.share_url("x" * 7000))
+
+
+class BranchTests(unittest.TestCase):
+    def test_no_releases(self):
+        commit = {"sha": "abcdef1234567890", "commit": {"message": "fix", "committer": {"date": "2026-10-02T19:44:06Z"}}}
+
+        def fake(url, *a, **kw):
+            return [] if "/releases" in url else [commit]
+
+        with mock.patch.object(sources.http, "get_json", fake):
+            rel = sources._gh_latest("a/b", None, Cfg(), "stable")
+        self.assertEqual(rel.version, "2026-10-02-abcdef1")
+        self.assertEqual(rel.url, "https://api.github.com/repos/a/b/zipball/abcdef1234567890")
+        self.assertEqual(rel.notes, "fix")
