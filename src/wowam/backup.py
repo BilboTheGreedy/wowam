@@ -71,3 +71,32 @@ def restore(client, name):
             else:
                 child.unlink()
         zf.extractall(wtf)
+
+
+def restore_addon(client, name, folders):
+    source = folder(client) / os.path.basename(name)
+    if not source.is_file():
+        raise FileNotFoundError(name)
+    wanted = {f.lower() for f in folders}
+    wtf = client.wtf_dir
+    done = 0
+    with zipfile.ZipFile(source) as zf:
+        picks = []
+        for info in zf.infolist():
+            parts = [p for p in info.filename.replace("\\", "/").split("/") if p]
+            if info.is_dir() or info.filename.startswith("/") or ".." in parts or len(parts) < 2:
+                continue
+            if parts[-2] != "SavedVariables":
+                continue
+            stem = parts[-1].split(".lua")[0].lower()
+            if parts[-1].lower().endswith((".lua", ".lua.bak")) and stem in wanted:
+                picks.append((info, parts))
+        if picks:
+            create(client, keep=0)
+        for info, parts in picks:
+            target = wtf.joinpath(*parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info) as src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out)
+            done += 1
+    return done

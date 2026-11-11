@@ -26,6 +26,7 @@ Rectangle {
     required property bool notes
     required property bool outdated
     required property string needs
+    required property bool off
 
     signal menuRequested(var row, var anchor)
     signal linkRequested(var row)
@@ -175,6 +176,7 @@ Rectangle {
                     : root.action === "link" ? "Set source"
                     : root.action === "reinstall" ? "Reinstall"
                     : root.action === "find" ? "Find it"
+                    : root.action === "enable" ? "Turn on"
                     : "Retry"
                 onClicked: {
                     if (root.action === "update") backend.updateAddon(root.key)
@@ -182,6 +184,7 @@ Rectangle {
                     else if (root.action === "link") root.linkRequested(root)
                     else if (root.action === "reinstall") backend.reinstall(root.key)
                     else if (root.action === "find") root.findRequested(root.needs)
+                    else if (root.action === "enable") backend.setEnabled(root.key, true)
                     else backend.retry(root.key)
                 }
             }

@@ -1,5 +1,6 @@
 import hashlib
 import re
+import shutil
 import threading
 import time
 import zipfile
@@ -34,6 +35,7 @@ class Addon:
     note: str = ""
     previous: str = ""
     outdated: bool = False
+    off: bool = False
     needs: list = field(default_factory=list)
     candidates: list = field(default_factory=list)
 
@@ -249,14 +251,16 @@ class Manager:
                 dirs = list(rec.get("dirs", []))
                 owned.update(dirs)
                 present = [d for d in dirs if (self.client.addons_dir / d).is_dir()]
+                off = bool(rec.get("off"))
                 modified = False
-                if present:
+                if present and not off:
                     modified, touched = self._modified(rec)
                     dirty = dirty or touched
-                needs, outdated = self._health(present, everything) if present else ([], False)
+                needs, outdated = self._health(present, everything) if present and not off else ([], False)
                 out.append(
                     Addon(
                         key=ref,
+                        off=off,
                         ref=ref,
                         name=toc.tidy(rec.get("name", "")) or ref,
                         version=rec.get("version", ""),
@@ -264,7 +268,7 @@ class Manager:
                         managed=True,
                         pinned=bool(rec.get("pinned")),
                         modified=modified,
-                        missing=not present,
+                        missing=not present and not off,
                         channel=rec.get("channel", "stable"),
                         author=rec.get("author", ""),
                         page=rec.get("page", "") or sources.page_of(ref),
@@ -411,6 +415,9 @@ class Manager:
                     for d in old.get("dirs", []):
                         if d not in names:
                             installer.remove(self.client.addons_dir / d)
+                if old.get("off"):
+                    for d in old.get("dirs", []):
+                        installer.remove(self.off_dir / d)
                 main = self._main(names, ref)
                 fields = toc.read(self.client.addons_dir / main, self.client.flavor)
                 hashes, stamps = self._fingerprints(names)
@@ -440,6 +447,31 @@ class Manager:
                 zip_path.unlink()
             except OSError:
                 pass
+
+    @property
+    def off_dir(self):
+        return self.client.addons_dir.parent / "AddOns.off"
+
+    def set_enabled(self, ref, on):
+        with self.lock:
+            self.state.load()
+            rec = self.state.addons.get(ref)
+            if not rec or bool(rec.get("off")) != on:
+                return
+            src, dst = (self.off_dir, self.client.addons_dir) if on else (self.client.addons_dir, self.off_dir)
+            dst.mkdir(parents=True, exist_ok=True)
+            for d in rec.get("dirs", []):
+                if "/" in d or "\\" in d or d in ("", ".", ".."):
+                    continue
+                if (src / d).is_dir():
+                    installer.remove(dst / d)
+                    shutil.move(str(src / d), str(dst / d))
+            if on:
+                rec.pop("off", None)
+                rec["hashes"], rec["stamps"] = self._fingerprints(rec.get("dirs", []))
+            else:
+                rec["off"] = True
+            self.state.save()
 
     def _main(self, names, ref=""):
         flat = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())
@@ -491,6 +523,8 @@ class Manager:
                     if "/" in d or "\\" in d or d in ("", ".", ".."):
                         continue
                     installer.remove(self.client.addons_dir / d)
+                    if addon.off:
+                        installer.remove(self.off_dir / d)
             if addon.managed:
                 self.state.load()
                 self.state.addons.pop(addon.ref, None)
@@ -542,7 +576,7 @@ class Manager:
 
 
 def needs_update(addon, release):
-    if not release or not addon.managed:
+    if not release or not addon.managed or addon.off:
         return False
     return addon.missing or not same_version(addon.version, release.version)
 

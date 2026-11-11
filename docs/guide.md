@@ -22,11 +22,15 @@ The menu on each row:
 | What's new | the changelog of the latest version |
 | Go back to ... | puts the previous version back and pins it |
 | Reinstall | downloads the current version again |
+| Turn off / Turn on | moves the addon out of the AddOns folder into `Interface/AddOns.off` so the game does not load it, and back again |
+| Put back settings from last backup | restores only this addon's saved settings from the newest backup |
 | Pin this version | stops updates for this addon |
 | Include beta releases | also offers alpha and beta versions |
 | Change source | point the addon at another link |
 | Forget source | keep the files but stop tracking them |
 | Remove | deletes the addon folders |
+
+"Needs attention" next to the filter shows only addons with an update, an error, your own changes or an out of date mark. Handy after a game patch.
 
 Shortcuts: F5 refresh, Ctrl+U update all, Ctrl+F search, Ctrl+, settings.
 

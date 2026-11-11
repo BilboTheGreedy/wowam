@@ -551,3 +551,45 @@ class FileInstallTests(unittest.TestCase):
             with self.assertRaises(sources.SourceError):
                 (home / "b.zip").write_text("no")
                 mgr.install_file(home / "b.zip")
+
+
+class OffTests(unittest.TestCase):
+    def test_turn_off_and_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            client = clients.Client(home / "wow" / "_retail_", "_retail_", "wow", "12.0.0.1", "mainline", "Retail")
+            addon = client.addons_dir / "Foo"
+            addon.mkdir(parents=True)
+            (addon / "Foo.toc").write_text("## Title: Foo\n")
+            mgr = manager.Manager(client, Cfg())
+            mgr.state.addons["gh:a/foo"] = {"name": "Foo", "version": "1", "dirs": ["Foo"]}
+            mgr.state.save()
+            mgr.set_enabled("gh:a/foo", False)
+            self.assertFalse(addon.exists())
+            self.assertTrue((mgr.off_dir / "Foo" / "Foo.toc").is_file())
+            item = mgr.list()[0]
+            self.assertTrue(item.off)
+            self.assertFalse(item.missing)
+            self.assertFalse(manager.needs_update(item, Release("2", "u")))
+            mgr.set_enabled("gh:a/foo", True)
+            self.assertTrue((addon / "Foo.toc").is_file())
+            self.assertFalse(mgr.list()[0].off)
+
+
+class AddonRestoreTests(unittest.TestCase):
+    def test_restore_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            client = clients.Client(home / "wow" / "_retail_", "_retail_", "wow", "12.0.0.1", "mainline", "Retail")
+            sv = client.wtf_dir / "Account" / "A" / "SavedVariables"
+            sv.mkdir(parents=True)
+            (sv / "Foo.lua").write_text("old foo")
+            (sv / "Bar.lua").write_text("old bar")
+            with mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(home / "data")}):
+                made = backup.create(client)
+                (sv / "Foo.lua").write_text("new foo")
+                (sv / "Bar.lua").write_text("new bar")
+                count = backup.restore_addon(client, made.name, ["Foo"])
+            self.assertEqual(count, 1)
+            self.assertEqual((sv / "Foo.lua").read_text(), "old foo")
+            self.assertEqual((sv / "Bar.lua").read_text(), "new bar")

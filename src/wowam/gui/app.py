@@ -22,6 +22,7 @@ QML_DIR = Path(__file__).resolve().parent / "qml"
 ADDON_ROLES = [
     "key", "name", "version", "latest", "source", "status", "statusText", "pinned", "modified", "managed",
     "progress", "author", "page", "channel", "action", "folders", "busy", "previous", "notes", "outdated", "needs",
+    "off",
 ]
 CLIENT_ROLES = ["key", "label", "location", "version", "updates"]
 BROWSE_ROLES = [
@@ -135,6 +136,7 @@ class Backend(QObject):
         self._searching = False
         self._shared = []
         self._setup_changes = {}
+        self._attention = False
         self.window = None
         self._tick = QTimer(self)
         self._tick.setInterval(2 * 3600 * 1000)
@@ -319,6 +321,8 @@ class Backend(QObject):
                 status, text, action = "suggest", f"Looks like {e.guess_name} on WoWInterface", "accept"
             else:
                 status, text, action = "unknown", a.note or "Source unknown", "link"
+        elif a.off:
+            status, text, action = "pinned", "Turned off", "enable"
         elif a.missing:
             status, text, action = "error", "Files are missing", "reinstall"
         elif update and a.pinned:
@@ -358,6 +362,7 @@ class Backend(QObject):
             "notes": bool(rel and rel.notes),
             "outdated": a.outdated,
             "needs": a.needs[0] if a.needs else "",
+            "off": a.off,
         }
 
     def _publish(self):
@@ -366,7 +371,9 @@ class Backend(QObject):
         for e in sorted(self._entries.values(), key=lambda x: x.addon.name.lower().lstrip("!")):
             hay = f"{e.addon.name} {e.addon.author} {' '.join(e.addon.dirs)}".lower()
             if all(w in hay for w in words):
-                rows.append(self._row(e))
+                row = self._row(e)
+                if not self._attention or row["status"] in ("update", "error", "modified", "suggest") or row["outdated"]:
+                    rows.append(row)
         self._addons.sync(rows)
         client = self._client()
         if client:
@@ -740,6 +747,55 @@ class Backend(QObject):
             self._mgr(client).set_field(e.addon.ref, "pinned", not e.addon.pinned)
             self._reload()
 
+    @Slot(str, bool)
+    def setEnabled(self, key, on):
+        e = self._entries.get(key)
+        client = self._client()
+        if not e or not client or not e.addon.managed or e.busy:
+            return
+        mgr = self._mgr(client)
+
+        def done(result, err):
+            if err:
+                self.toast.emit(err, True)
+            else:
+                self.toast.emit(f"{e.addon.name} is turned {'on' if on else 'off'}", False)
+            self._reload()
+
+        self._bg(lambda: mgr.set_enabled(e.addon.ref, on), done)
+
+    @Slot(str)
+    def restoreSettings(self, key):
+        e = self._entries.get(key)
+        client = self._client()
+        if not e or not client:
+            return
+        found = backup.entries(client)
+        if not found:
+            self.toast.emit("There is no backup to restore from yet", True)
+            return
+        addon = e.addon
+
+        def done(count, err):
+            if err:
+                self.toast.emit(err, True)
+            elif count:
+                self.toast.emit(f"Put back the settings of {addon.name} from the last backup", False)
+            else:
+                self.toast.emit(f"The last backup has no settings for {addon.name}", True)
+            self.backupsChanged.emit()
+
+        self._bg(lambda: backup.restore_addon(client, found[0]["name"], addon.dirs), done)
+
+    @Property(bool, notify=changed)
+    def attention(self):
+        return self._attention
+
+    @Slot(bool)
+    def setAttention(self, on):
+        self._attention = bool(on)
+        self._publish()
+
     @Slot(str, str)
     def setChannel(self, key, channel):
         e = self._entries.get(key)
@@ -927,6 +983,7 @@ class Backend(QObject):
                 self._browse.patch(ref, installed=True)
                 self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
                 self.historyChanged.emit()
+                self.sharedChanged.emit()
             if client is self._client():
                 self._reload()
             else:
@@ -962,7 +1019,15 @@ class Backend(QObject):
     @Property("QVariantList", notify=sharedChanged)
     def sharedLists(self):
         keys = ("slug", "name", "by", "game", "about")
-        return [{**{k: i[k] for k in keys}, "count": len(i["refs"])} for i in self._shared]
+        client = self._client()
+        have = set(self._mgr(client).refs()) if client else set()
+        label = client.label.lower() if client else ""
+        rows = [
+            {**{k: i[k] for k in keys}, "count": len(i["refs"]), "have": sum(1 for r in i["refs"] if r in have)}
+            for i in self._shared
+        ]
+        rows.sort(key=lambda r: (r["game"].lower() != label, r["name"].lower()))
+        return rows
 
     @Property(str, constant=True)
     def listsPage(self):

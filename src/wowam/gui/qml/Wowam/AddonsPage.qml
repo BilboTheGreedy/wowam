@@ -241,6 +241,13 @@ Item {
             TabButton { label: "Installed"; active: root.tab === 0; badge: backend.addonCount; onClicked: root.tab = 0 }
             TabButton { label: "Browse"; active: root.tab === 1; onClicked: { root.tab = 1; browseField.forceActiveFocus() } }
             Item { Layout.fillWidth: true }
+            Btn {
+                visible: root.tab === 0
+                implicitHeight: 32
+                text: "Needs attention"
+                kind: backend.attention ? "accent" : "ghost"
+                onClicked: backend.setAttention(!backend.attention)
+            }
             Field {
                 id: filterField
                 visible: root.tab === 0
@@ -443,7 +450,7 @@ Item {
                                         }
                                     }
                                     Text {
-                                        text: setup.modelData.count + (setup.modelData.count === 1 ? " addon" : " addons")
+                                        text: (setup.modelData.have > 0 ? "you have " + setup.modelData.have + " of " : "") + setup.modelData.count + (setup.modelData.count === 1 ? " addon" : " addons")
                                         color: Theme.sub
                                         font.pixelSize: Theme.small
                                     }
@@ -511,6 +518,17 @@ Item {
             iconName: "download"
             visible: menu.managed
             onTriggered: backend.reinstall(menu.row.key)
+        }
+        PopItem {
+            text: menu.row && menu.row.off ? "Turn on" : "Turn off"
+            iconName: ""
+            visible: menu.managed
+            onTriggered: backend.setEnabled(menu.row.key, menu.row.off)
+        }
+        PopItem {
+            text: "Put back settings from last backup"
+            iconName: "archive"
+            onTriggered: backend.restoreSettings(menu.row.key)
         }
         PopItem {
             text: menu.row && menu.row.pinned ? "Unpin" : "Pin this version"
