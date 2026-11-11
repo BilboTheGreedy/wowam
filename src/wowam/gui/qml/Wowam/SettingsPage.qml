@@ -212,7 +212,7 @@ Item {
                     label: "CurseForge API key"
                     value: backend.curseKey
                     settingKey: "curseforge_key"
-                    detail: "Optional. Keys cost nothing but you have to apply for one at console.curseforge.com. With a key, CurseForge addons show up in Browse and can be installed and updated, except the ones whose authors only allow the CurseForge app."
+                    detail: backend.curseBuiltin ? "Not needed. This build already has CurseForge access; a key here is used instead of the built-in one." : "Optional. Keys cost nothing but you have to apply for one at console.curseforge.com. With a key, CurseForge addons show up in Browse and can be installed and updated, except the ones whose authors only allow the CurseForge app."
                 }
                 Secret {
                     label: "Wago Addons API key"

@@ -4,6 +4,7 @@ import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 from urllib.parse import quote, quote_plus
 
 from . import http
@@ -363,8 +364,21 @@ def _wago_latest(ident, client, cfg, channel):
     )
 
 
+def cf_key(cfg):
+    saved = cfg.get("curseforge_key")
+    if saved:
+        return saved
+    with _memo_lock:
+        if "cf" not in _memo:
+            try:
+                _memo["cf"] = (Path(__file__).parent / "data" / "cf.key").read_text().strip()
+            except OSError:
+                _memo["cf"] = ""
+        return _memo["cf"]
+
+
 def _cf_headers(cfg):
-    key = cfg.get("curseforge_key")
+    key = cf_key(cfg)
     if not key:
         raise SourceError("CurseForge needs an API key. Add one in Settings.")
     return {"x-api-key": key, "Accept": "application/json"}
@@ -543,7 +557,7 @@ def _search_wago(query, client, cfg):
 
 
 def _search_cf(query, client, cfg):
-    if not cfg.get("curseforge_key"):
+    if not cf_key(cfg):
         return []
     kind = CF_TYPE.get(client.flavor)
     path = f"/mods/search?gameId=1&searchFilter={quote_plus(query)}&sortField=6&sortOrder=desc&pageSize=20"

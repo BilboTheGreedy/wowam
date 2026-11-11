@@ -19,6 +19,11 @@ from ..sources import SourceError
 
 QML_DIR = Path(__file__).resolve().parent / "qml"
 
+
+class _NoKey:
+    def get(self, key):
+        return ""
+
 ADDON_ROLES = [
     "key", "name", "version", "latest", "source", "status", "statusText", "pinned", "modified", "managed",
     "progress", "author", "page", "channel", "action", "folders", "busy", "previous", "notes", "outdated", "needs",
@@ -1572,6 +1577,10 @@ class Backend(QObject):
     @Property(str, notify=settingsChanged)
     def curseKey(self):
         return self.cfg.get("curseforge_key")
+
+    @Property(bool, constant=True)
+    def curseBuiltin(self):
+        return bool(sources.cf_key(_NoKey()))
 
     @Property(bool, notify=settingsChanged)
     def backupOnUpdate(self):

@@ -96,6 +96,10 @@ def size_mb(folder):
 def main():
     import PyInstaller.__main__
 
+    key = os.environ.get("CURSEFORGE_KEY", "").strip()
+    if key:
+        (ROOT / "src/wowam/data/cf.key").write_text(key)
+
     shutil.rmtree(DIST, ignore_errors=True)
     args = [
         "--noconfirm",

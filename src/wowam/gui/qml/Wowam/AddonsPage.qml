@@ -461,7 +461,7 @@ Item {
                             visible: results.count === 0 && !backend.searching && !backend.searched && setups.count === 0
                             iconName: "globe"
                             heading: "Add an addon to " + backend.clientLabel
-                            detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", Wago Addons" : "") + (backend.curseKey ? ", CurseForge" : "") + "." + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
+                            detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", Wago Addons" : "") + ((backend.curseKey || backend.curseBuiltin) ? ", CurseForge" : "") + "." + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
                         }
                         Empty {
                             visible: results.count === 0 && !backend.searching && backend.searched && backend.hiddenResults === 0

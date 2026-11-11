@@ -135,7 +135,7 @@ class Manager:
                 note = "On Wago Addons, which needs an API key"
         curse = fields.get("x-curse-project-id", "")
         if curse.isdigit():
-            if self.cfg.get("curseforge_key"):
+            if sources.cf_key(self.cfg):
                 out.append(f"cf:{curse}")
             elif not out and not note:
                 note = "On CurseForge, which needs an API key"
