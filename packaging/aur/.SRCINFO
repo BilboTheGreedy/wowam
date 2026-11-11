@@ -1,0 +1,16 @@
+pkgbase = wowam
+	pkgdesc = World of Warcraft addon manager with a GUI
+	pkgver = 0.8.1
+	pkgrel = 1
+	url = https://github.com/BilboTheGreedy/wowam
+	arch = any
+	license = MIT
+	depends = python
+	depends = pyside6
+	depends = qt6-declarative
+	optdepends = github-cli: use its login for github requests and sharing setups
+	optdepends = lutris: start the game from the app
+	source = wowam-0.8.1.tar.gz::https://github.com/BilboTheGreedy/wowam/archive/refs/tags/v0.8.1.tar.gz
+	sha256sums = 16149c19d127dc7b8e966e289c02c65bdb5ff5f6f6e1d21e8dd6b92da0c76b0d
+
+pkgname = wowam

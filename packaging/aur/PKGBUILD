@@ -1,0 +1,31 @@
+pkgname=wowam
+pkgver=0.8.1
+pkgrel=1
+pkgdesc="World of Warcraft addon manager with a GUI"
+arch=('any')
+url="https://github.com/BilboTheGreedy/wowam"
+license=('MIT')
+depends=('python' 'pyside6' 'qt6-declarative')
+optdepends=('github-cli: use its login for github requests and sharing setups'
+            'lutris: start the game from the app')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('16149c19d127dc7b8e966e289c02c65bdb5ff5f6f6e1d21e8dd6b92da0c76b0d')
+
+package() {
+    cd "$pkgname-$pkgver"
+    local site
+    site="$(python -c 'import site; print(site.getsitepackages()[0])')"
+    install -d "$pkgdir$site"
+    cp -r src/wowam "$pkgdir$site/"
+    touch "$pkgdir$site/wowam/packaged"
+    python -m compileall -q -d "$site/wowam" "$pkgdir$site/wowam"
+    install -d "$pkgdir/usr/bin"
+    printf '#!/bin/sh\nexec python -m wowam "$@"\n' > "$pkgdir/usr/bin/wowam"
+    chmod 755 "$pkgdir/usr/bin/wowam"
+    install -Dm644 packaging/wowam.desktop "$pkgdir/usr/share/applications/wowam.desktop"
+    install -Dm644 src/wowam/data/wowam.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/wowam.svg"
+    for s in 16 32 48 64 128 256 512; do
+        install -Dm644 "src/wowam/data/wowam-$s.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/wowam.png"
+    done
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
