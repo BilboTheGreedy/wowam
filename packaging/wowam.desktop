@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=WoW Addon Manager
+GenericName=World of Warcraft Addon Manager
+Comment=Install and update World of Warcraft addons
+Keywords=wow;wowam;warcraft;addon;addons;
+Exec=wowam %u
+Icon=wowam
+Terminal=false
+Categories=Game;
+StartupWMClass=wowam
+MimeType=x-scheme-handler/wago-app;

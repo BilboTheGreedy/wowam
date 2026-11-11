@@ -37,6 +37,8 @@ def app_dir():
 
 
 def check(current=__version__):
+    if Path(__file__).with_name("packaged").exists():
+        return None
     try:
         page = http.final_url(f"https://github.com/{REPO}/releases/latest")
     except http.HttpError:
