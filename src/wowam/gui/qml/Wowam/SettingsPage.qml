@@ -6,6 +6,7 @@ import Wowam
 Item {
     id: root
     signal addFolderRequested()
+    signal tourRequested()
 
     component Line: RowLayout {
         property string label: ""
@@ -133,6 +134,10 @@ Item {
                             onClicked: backend.setTheme(modelData[0])
                         }
                     }
+                }
+                Line {
+                    label: "Tour"
+                    Btn { text: "Show the tour again"; onClicked: root.tourRequested() }
                 }
             }
 

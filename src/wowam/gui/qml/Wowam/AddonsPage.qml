@@ -13,6 +13,10 @@ Item {
         if (browseField.text.trim().length > 0) backend.search(browseField.text)
     }
 
+    function showTab(index) {
+        tab = index
+    }
+
     function focusSearch() {
         if (tab === 0) filterField.forceActiveFocus()
         else browseField.forceActiveFocus()

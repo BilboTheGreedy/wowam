@@ -16,6 +16,8 @@ ApplicationWindow {
 
     property bool settingsOpen: false
 
+    onVisibleChanged: if (visible && backend.welcomeNeeded) tour.start()
+
     onClosing: (close) => {
         if (backend.trayOn) {
             close.accepted = false
@@ -95,7 +97,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 currentIndex: window.settingsOpen ? 1 : 0
                 AddonsPage { id: addonsPage; onAddFolderRequested: folderDialog.open() }
-                SettingsPage { onAddFolderRequested: folderDialog.open() }
+                SettingsPage { onAddFolderRequested: folderDialog.open(); onTourRequested: tour.start() }
             }
         }
     }
@@ -115,6 +117,74 @@ ApplicationWindow {
             addonsPage.browseFor(text)
             window.raise()
             window.requestActivate()
+        }
+    }
+
+    Modal {
+        id: tour
+        property int step: 0
+        readonly property var steps: [
+            {
+                title: "Welcome",
+                text: "This app finds your World of Warcraft installs and keeps their addons up to date. The installs are listed on the left. This tour takes about a minute."
+            },
+            {
+                title: "Your addons",
+                text: "The Installed tab lists every addon in the selected install. When a new version is out the addon gets an Update button, and Update all does them in one go. The menu on each row has the changelog, pinning and going back a version."
+            },
+            {
+                title: "Find more addons",
+                text: "In Browse, search by name or paste a link from GitHub, WoWInterface, CurseForge or Wago. Any GitHub addon link works, and the addon is kept up to date from then on."
+            },
+            {
+                title: "Shared setups",
+                text: "Browse also lists whole addon setups that other players have published. Open one to see what is in it, then install the lot. Share mine publishes your own list, and a link to a list in a gist or a GitHub repo can be pasted anywhere an addon link can."
+            },
+            {
+                title: "Settings and backups",
+                text: "Settings has backups of your game settings, automatic updates, starting at login and the tray icon. You can replay this tour from there."
+            }
+        ]
+        function start() {
+            step = 0
+            place()
+            open()
+        }
+        function place() {
+            window.settingsOpen = step === 4
+            if (step < 4) addonsPage.showTab(step >= 2 ? 1 : 0)
+        }
+        title: steps[step].title
+        message: steps[step].text
+        cancelText: "Skip"
+        showCancel: step < steps.length - 1
+        confirmText: step < steps.length - 1 ? "Next" : "Done"
+        closePolicy: Popup.CloseOnEscape
+        onConfirmed: {
+            if (step < steps.length - 1) {
+                step += 1
+                place()
+            } else {
+                close()
+            }
+        }
+        onClosed: {
+            backend.setWelcomed()
+            window.settingsOpen = false
+            addonsPage.showTab(0)
+        }
+        RowLayout {
+            spacing: 6
+            Repeater {
+                model: tour.steps.length
+                Rectangle {
+                    required property int index
+                    implicitWidth: index === tour.step ? 18 : 6
+                    implicitHeight: 6
+                    radius: 3
+                    color: index === tour.step ? Theme.accent : Theme.tint(Theme.sub, 0.35)
+                }
+            }
         }
     }
 

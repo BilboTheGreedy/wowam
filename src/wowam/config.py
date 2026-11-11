@@ -17,6 +17,7 @@ DEFAULTS = {
     "curseforge_key": "",
     "tray": False,
     "aura_updates": True,
+    "welcomed": False,
 }
 
 

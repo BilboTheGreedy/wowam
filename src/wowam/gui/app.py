@@ -1148,6 +1148,16 @@ class Backend(QObject):
         self.cfg.set("update_on_start", bool(on))
         self.settingsChanged.emit()
 
+    @Property(bool, notify=settingsChanged)
+    def welcomeNeeded(self):
+        return not self.cfg.get("welcomed")
+
+    @Slot()
+    def setWelcomed(self):
+        if not self.cfg.get("welcomed"):
+            self.cfg.set("welcomed", True)
+            self.settingsChanged.emit()
+
     @Slot(str)
     def setTheme(self, mode):
         if mode in ("", "light", "dark"):
