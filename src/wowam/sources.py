@@ -1,4 +1,6 @@
 import re
+import shutil
+import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -129,9 +131,30 @@ def page_of(ref):
     return ""
 
 
+def gh_token(cfg):
+    saved = cfg.get("github_token")
+    if saved:
+        return saved
+    with _memo_lock:
+        if "cli" not in _memo:
+            _memo["cli"] = _cli_token()
+        return _memo["cli"]
+
+
+def _cli_token():
+    exe = shutil.which("gh")
+    if not exe:
+        return ""
+    try:
+        out = subprocess.run([exe, "auth", "token"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
 def _gh_headers(cfg):
     headers = {"Accept": "application/vnd.github+json"}
-    token = cfg.get("github_token")
+    token = gh_token(cfg)
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers

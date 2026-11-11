@@ -522,6 +522,6 @@ class PublishTests(unittest.TestCase):
         self.assertEqual((item["name"], item["by"], item["refs"]), ("Heal er", "me", ["gh:a/b"]))
 
     def test_no_token(self):
-        with mock.patch.object(lists.shutil, "which", return_value=None):
+        with mock.patch.object(sources, "_cli_token", return_value=""), mock.patch.dict(sources._memo, clear=True):
             with self.assertRaises(sources.SourceError):
                 lists.publish(Cfg(), ["gh:a/b"], "x")

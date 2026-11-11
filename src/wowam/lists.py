@@ -1,7 +1,5 @@
 import io
 import re
-import shutil
-import subprocess
 import tarfile
 import time
 import urllib.parse
@@ -10,7 +8,7 @@ from pathlib import PurePosixPath
 from . import http
 from .manager import parse_refs
 from .paths import cache_dir
-from .sources import SourceError
+from .sources import SourceError, gh_token
 
 REPO = "BilboTheGreedy/wowam-lists"
 PAGE = f"https://github.com/{REPO}"
@@ -110,22 +108,8 @@ def template(refs, game="", name="My setup", by="", about=""):
     return head + "\n".join(refs) + "\n"
 
 
-def token(cfg):
-    saved = cfg.get("github_token")
-    if saved:
-        return saved
-    exe = shutil.which("gh")
-    if not exe:
-        return ""
-    try:
-        out = subprocess.run([exe, "auth", "token"], capture_output=True, text=True, timeout=10)
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    return out.stdout.strip() if out.returncode == 0 else ""
-
-
 def publish(cfg, refs, name, about="", game="", gist=""):
-    key = token(cfg)
+    key = gh_token(cfg)
     if not key:
         raise SourceError("Add a GitHub token with the gist permission in Settings, or sign in with the GitHub CLI.")
     headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {key}"}

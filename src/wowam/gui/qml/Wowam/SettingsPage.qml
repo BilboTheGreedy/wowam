@@ -206,7 +206,7 @@ Item {
                     label: "GitHub token"
                     value: backend.githubToken
                     settingKey: "github_token"
-                    detail: "Optional. Without one, GitHub allows about 60 checks an hour, which is enough for most addon lists. Sharing a setup as a link needs a token with the gist permission, unless you are signed in with the GitHub CLI. A token with no extra permissions raises that limit."
+                    detail: "Optional. Without one, GitHub allows about 60 checks an hour, which is enough for most addon lists. A token with no extra permissions raises that limit, and sharing a setup as a link also needs the gist permission. If you are signed in with the GitHub CLI, the app uses that and you can leave this empty."
                 }
                 Secret {
                     label: "CurseForge API key"
