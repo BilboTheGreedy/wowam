@@ -497,3 +497,31 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(rel.version, "2026-10-02-abcdef1")
         self.assertEqual(rel.url, "https://api.github.com/repos/a/b/zipball/abcdef1234567890")
         self.assertEqual(rel.notes, "fix")
+
+
+class PublishTests(unittest.TestCase):
+    def test_publish(self):
+        sent = []
+
+        def send(url, payload, headers=None, method="POST", timeout=30):
+            sent.append((url, payload, method, headers))
+            if method == "PATCH":
+                raise lists.http.HttpError(404, "gone")
+            return {"id": "abc123", "html_url": "https://gist.github.com/me/abc123"}
+
+        with mock.patch.object(lists.http, "send_json", send), mock.patch.object(
+            lists.http, "get_json", return_value={"login": "me"}
+        ):
+            out = lists.publish(Cfg(github_token="t"), ["gh:a/b"], "Heal\ner", "x", "Retail", "old")
+        self.assertEqual(out, {"id": "abc123", "url": "https://gist.github.com/me/abc123"})
+        self.assertEqual([m for _, _, m, _ in sent], ["PATCH", "POST"])
+        url, payload, method, headers = sent[1]
+        self.assertFalse(payload["public"])
+        self.assertEqual(headers["Authorization"], "Bearer t")
+        item = lists.parse(payload["files"][lists.FILE]["content"])
+        self.assertEqual((item["name"], item["by"], item["refs"]), ("Heal er", "me", ["gh:a/b"]))
+
+    def test_no_token(self):
+        with mock.patch.object(lists.shutil, "which", return_value=None):
+            with self.assertRaises(sources.SourceError):
+                lists.publish(Cfg(), ["gh:a/b"], "x")

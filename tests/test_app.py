@@ -134,6 +134,11 @@ class WindowTests(unittest.TestCase):
                     self.spin(qapp, lambda: False, 0.3)
                     self.assertEqual(shown[0]["count"], 1)
                     self.assertEqual(shown[0]["missing"], "gh:a/b")
+                    asked = []
+                    backend.shareRequested.connect(asked.append)
+                    backend.openShare()
+                    self.spin(qapp, lambda: False, 0.3)
+                    self.assertEqual(asked, [])
                     self.assertTrue(backend.welcomeNeeded)
                     window.show()
                     self.spin(qapp, lambda: False, 0.3)

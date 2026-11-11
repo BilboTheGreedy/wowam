@@ -1,5 +1,7 @@
 import io
 import re
+import shutil
+import subprocess
 import tarfile
 import time
 import urllib.parse
@@ -16,6 +18,7 @@ ARCHIVE = f"https://codeload.github.com/{REPO}/tar.gz/refs/heads/main"
 LIMIT = 200_000
 ARCHIVE_LIMIT = 5_000_000
 FIELDS = ("name", "by", "for", "about")
+FILE = "addons.txt"
 
 
 def list_url(text):
@@ -98,9 +101,59 @@ def shared(max_age=3600):
         return []
 
 
-def template(refs, game=""):
-    head = f"# name: My setup\n# by: \n# for: {game}\n# about: \n"
+def _line(text):
+    return " ".join(str(text or "").split())[:120]
+
+
+def template(refs, game="", name="My setup", by="", about=""):
+    head = f"# name: {_line(name)}\n# by: {_line(by)}\n# for: {_line(game)}\n# about: {_line(about)}\n"
     return head + "\n".join(refs) + "\n"
+
+
+def token(cfg):
+    saved = cfg.get("github_token")
+    if saved:
+        return saved
+    exe = shutil.which("gh")
+    if not exe:
+        return ""
+    try:
+        out = subprocess.run([exe, "auth", "token"], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def publish(cfg, refs, name, about="", game="", gist=""):
+    key = token(cfg)
+    if not key:
+        raise SourceError("Add a GitHub token with the gist permission in Settings, or sign in with the GitHub CLI.")
+    headers = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {key}"}
+    try:
+        by = http.get_json("https://api.github.com/user", headers).get("login", "")
+    except (http.HttpError, AttributeError):
+        by = ""
+    body = {
+        "description": f"{_line(name)} - wowam addon list",
+        "files": {FILE: {"content": template(refs, game, name, by, about)}},
+    }
+    try:
+        if gist:
+            try:
+                data = http.send_json(f"https://api.github.com/gists/{gist}", body, headers, "PATCH")
+            except http.HttpError as e:
+                if e.status != 404:
+                    raise
+                gist = ""
+        if not gist:
+            data = http.send_json("https://api.github.com/gists", {**body, "public": False}, headers)
+    except http.HttpError as e:
+        if e.status == 401:
+            raise SourceError("GitHub rejected the token.") from e
+        if e.status in (403, 404):
+            raise SourceError("The GitHub token is not allowed to create gists. It needs the gist permission.") from e
+        raise SourceError(f"Could not create the link: {e}") from e
+    return {"id": data["id"], "url": data["html_url"]}
 
 
 def share_url(text):

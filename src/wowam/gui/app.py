@@ -114,6 +114,8 @@ class Backend(QObject):
     aurasChanged = Signal()
     sharedChanged = Signal()
     listReady = Signal("QVariant")
+    shareRequested = Signal("QVariant")
+    published = Signal(str)
 
     def __init__(self, uri=""):
         super().__init__()
@@ -1001,6 +1003,47 @@ class Backend(QObject):
                 self._show_list(result)
 
         self._bg(lambda: lists.fetch(url), done)
+
+    @Slot()
+    def openShare(self):
+        client = self._client()
+        if not client:
+            return
+        mgr = self._mgr(client)
+        mgr.refs()
+        items = [{"ref": ref, "name": rec.get("name") or ref} for ref, rec in mgr.state.addons.items()]
+        if not items:
+            self.toast.emit("Install some addons first, then share the list", True)
+            return
+        items.sort(key=lambda i: i["name"].lower())
+        self.shareRequested.emit({"items": items, "game": client.label, "shared": client.id in self.cfg.get("gists")})
+
+    @Slot(str, str, str)
+    def publishList(self, name, about, text):
+        client = self._client()
+        refs = parse_refs(text)
+        if not client or not refs:
+            self.toast.emit("Pick at least one addon", True)
+            return
+        gists = dict(self.cfg.get("gists"))
+        name = name.strip() or "My setup"
+
+        def done(result, err):
+            if err:
+                self.toast.emit(err, True)
+                self.published.emit("")
+                return
+            gists[client.id] = result["id"]
+            self.cfg.set("gists", gists)
+            QGuiApplication.clipboard().setText(result["url"])
+            self.published.emit(result["url"])
+
+        self._bg(lambda: lists.publish(self.cfg, refs, name, about, client.label, gists.get(client.id, "")), done)
+
+    @Slot(str)
+    def copyText(self, text):
+        QGuiApplication.clipboard().setText(text)
+        self.toast.emit("Copied", False)
 
     @Slot()
     def shareList(self):

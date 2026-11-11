@@ -357,7 +357,7 @@ Item {
                                         font.pixelSize: 16
                                         font.weight: Font.DemiBold
                                     }
-                                    Btn { text: "Share mine"; iconName: "external"; onClicked: backend.shareList() }
+                                    Btn { text: "Share mine"; iconName: "link"; onClicked: backend.openShare() }
                                 }
                                 Text {
                                     Layout.fillWidth: true

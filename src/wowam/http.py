@@ -68,6 +68,23 @@ def final_url(url, timeout=20):
         return resp.geturl()
 
 
+def send_json(url, payload, headers=None, method="POST", timeout=30):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode(),
+        headers={"User-Agent": UA, "Content-Type": "application/json", **(headers or {})},
+        method=method,
+    )
+    host = urllib.request.urlparse(url).netloc
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=CONTEXT) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise HttpError(e.code, f"HTTP {e.code} from {host}", dict(e.headers)) from e
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise HttpError(0, f"could not reach {host}: {getattr(e, 'reason', e)}") from e
+
+
 def get_bytes(url, limit, headers=None, timeout=30):
     with _request(url, headers, timeout=timeout) as resp:
         data = resp.read(limit + 1)

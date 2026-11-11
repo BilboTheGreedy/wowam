@@ -206,7 +206,7 @@ Item {
                     label: "GitHub token"
                     value: backend.githubToken
                     settingKey: "github_token"
-                    detail: "Optional. Without one, GitHub allows about 60 checks an hour, which is enough for most addon lists. A token with no extra permissions raises that limit."
+                    detail: "Optional. Without one, GitHub allows about 60 checks an hour, which is enough for most addon lists. Sharing a setup as a link needs a token with the gist permission, unless you are signed in with the GitHub CLI. A token with no extra permissions raises that limit."
                 }
                 Secret {
                     label: "CurseForge API key"
@@ -244,7 +244,7 @@ Item {
                 RowLayout {
                     spacing: 8
                     Btn { text: "Copy my addon list"; iconName: "copy"; enabled: backend.hasClient; onClicked: backend.copyList() }
-                    Btn { text: "Share it with other players"; iconName: "external"; enabled: backend.hasClient; onClicked: backend.shareList() }
+                    Btn { text: "Share it as a link"; iconName: "link"; enabled: backend.hasClient; onClicked: backend.openShare() }
                 }
                 Flow {
                     Layout.fillWidth: true

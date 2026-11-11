@@ -17,8 +17,10 @@ Install someone's whole addon setup in one click, or publish your own for others
 
 **Share yours**
 
-- Click "Share mine" in Browse. It opens GitHub with your addon list filled in, you give it a name and send it. It shows up in the app for everyone once it is merged into [wowam-lists](https://github.com/BilboTheGreedy/wowam-lists).
-- Or keep it to yourself and your friends: put the list in a gist and send them the link.
+- Click "Share mine" in Browse, give the setup a name and pick the addons. The app saves it as a secret gist on your GitHub account and copies the link. Send the link to your friends, they paste it into Browse.
+- Sharing again from the same install updates the same link.
+- It needs a GitHub token with the gist permission (Settings), or being signed in with the GitHub CLI (`gh auth login`).
+- To get it listed in the app for everyone, use "Send it to the public list instead". That opens a pull request on [wowam-lists](https://github.com/BilboTheGreedy/wowam-lists).
 
 A list is just a text file:
 

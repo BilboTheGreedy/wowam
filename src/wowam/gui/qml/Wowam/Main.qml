@@ -112,6 +112,8 @@ ApplicationWindow {
         target: backend
         function onToast(message, isError) { toast.show(message, isError) }
         function onListReady(item) { listDialog.show(item) }
+        function onShareRequested(data) { shareDialog.show(data) }
+        function onPublished(url) { shareDialog.busy = false; shareDialog.link = url }
         function onShowBrowse(text) {
             window.settingsOpen = false
             addonsPage.browseFor(text)
@@ -138,7 +140,7 @@ ApplicationWindow {
             },
             {
                 title: "Shared setups",
-                text: "Browse also lists whole addon setups that other players have published. Open one to see what is in it, then install the lot. Share mine publishes your own list, and a link to a list in a gist or a GitHub repo can be pasted anywhere an addon link can."
+                text: "Browse also lists whole addon setups that other players have published. Open one to see what is in it, then install the lot. Share mine turns your own addons into a link you can send to friends, who paste it into Browse."
             },
             {
                 title: "Settings and backups",
@@ -185,6 +187,117 @@ ApplicationWindow {
                     color: index === tour.step ? Theme.accent : Theme.tint(Theme.sub, 0.35)
                 }
             }
+        }
+    }
+
+    Modal {
+        id: shareDialog
+        property var items: []
+        property var off: ({})
+        property string game: ""
+        property string link: ""
+        property bool busy: false
+        property bool shared: false
+        readonly property int picked: items.filter(i => !off[i.ref]).length
+        function show(data) {
+            items = data.items
+            game = data.game
+            shared = data.shared
+            off = ({})
+            link = ""
+            busy = false
+            open()
+            nameField.forceActiveFocus()
+        }
+        function toggle(ref) {
+            var next = Object.assign({}, off)
+            next[ref] = !next[ref]
+            off = next
+        }
+        width: Math.min(520, parent ? parent.width - 48 : 520)
+        title: link ? "Your link is ready" : "Share your " + game + " setup"
+        message: link
+            ? "It is on the clipboard. Anyone can paste it into Browse to install this setup. Sharing again from this install updates the same link."
+            : (shared ? "This updates the link you made before. " : "") + "The app saves the list as a secret gist on your GitHub account and gives you a link to pass around."
+        showCancel: !link
+        confirmText: link ? "Done" : busy ? "Creating" : shared ? "Update link" : "Create link"
+        confirmEnabled: link !== "" || (!busy && picked > 0)
+        onConfirmed: {
+            if (link) {
+                close()
+                return
+            }
+            busy = true
+            backend.publishList(nameField.text, aboutField.text, items.filter(i => !off[i.ref]).map(i => i.ref).join(" "))
+        }
+        RowLayout {
+            visible: shareDialog.link !== ""
+            Layout.fillWidth: true
+            spacing: 8
+            Field { Layout.fillWidth: true; readOnly: true; text: shareDialog.link; Accessible.name: "Link" }
+            Btn { text: "Copy"; iconName: "copy"; onClicked: backend.copyText(shareDialog.link) }
+        }
+        Field {
+            id: nameField
+            visible: !shareDialog.link
+            Layout.fillWidth: true
+            placeholderText: "Name, for example Raid healer"
+            maximumLength: 60
+            Accessible.name: "Setup name"
+        }
+        Field {
+            id: aboutField
+            visible: !shareDialog.link
+            Layout.fillWidth: true
+            placeholderText: "One line about it (optional)"
+            maximumLength: 120
+            Accessible.name: "About this setup"
+        }
+        ListView {
+            visible: !shareDialog.link
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, 240)
+            clip: true
+            model: shareDialog.items
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            delegate: RowLayout {
+                id: pick
+                required property var modelData
+                readonly property bool on: !shareDialog.off[modelData.ref]
+                width: ListView.view.width - 12
+                height: 30
+                spacing: 10
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: modelData.name
+                Accessible.checked: on
+                TapHandler { onTapped: shareDialog.toggle(pick.modelData.ref) }
+                Rectangle {
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 5
+                    color: pick.on ? Theme.accent : "transparent"
+                    border.color: pick.on ? Theme.accent : Theme.line
+                    Icon { anchors.centerIn: parent; visible: pick.on; shape: "check"; size: 12; color: Theme.onAccent }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: pick.modelData.name
+                    color: pick.on ? Theme.text : Theme.sub
+                    font.pixelSize: Theme.body
+                    elide: Text.ElideRight
+                }
+            }
+        }
+        Text {
+            visible: !shareDialog.link
+            Layout.fillWidth: true
+            text: "<a href='x'>Send it to the public list instead</a>"
+            textFormat: Text.StyledText
+            color: Theme.sub
+            linkColor: Theme.accentText
+            font.pixelSize: Theme.small
+            onLinkActivated: { shareDialog.close(); backend.shareList() }
         }
     }
 

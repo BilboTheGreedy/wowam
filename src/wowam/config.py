@@ -18,6 +18,7 @@ DEFAULTS = {
     "tray": False,
     "aura_updates": True,
     "welcomed": False,
+    "gists": {},
 }
 
 
