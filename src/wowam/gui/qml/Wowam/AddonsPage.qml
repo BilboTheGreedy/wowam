@@ -145,6 +145,16 @@ Item {
                     elide: Text.ElideRight
                 }
             }
+            Btn {
+                visible: backend.playTip !== ""
+                iconName: "play"
+                text: "Play"
+                Accessible.name: backend.playTip
+                onClicked: backend.play()
+                ToolTip.visible: hovered
+                ToolTip.delay: 500
+                ToolTip.text: backend.playTip
+            }
             IconBtn {
                 iconName: "refresh"
                 tip: "Check again"
@@ -160,6 +170,31 @@ Item {
                 enabled: !backend.working
                 text: backend.updateCount === 1 ? "Update 1 addon" : "Update all " + backend.updateCount
                 onClicked: backend.updateAll()
+            }
+        }
+
+        Rectangle {
+            visible: backend.auraCount > 0
+            Layout.fillWidth: true
+            Layout.topMargin: 14
+            implicitHeight: auraText.implicitHeight + 20
+            radius: Theme.radius
+            color: Theme.accentSoft
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                spacing: 10
+                Icon { shape: "download"; size: 16; color: Theme.accentText }
+                Text {
+                    id: auraText
+                    Layout.fillWidth: true
+                    text: (backend.auraCount === 1 ? "1 WeakAuras update is" : backend.auraCount + " WeakAuras updates are")
+                        + " ready: " + backend.auraSummary + ". Open WeakAuras in the game to install " + (backend.auraCount === 1 ? "it." : "them.")
+                    color: Theme.text
+                    font.pixelSize: Theme.body
+                    wrapMode: Text.WordWrap
+                }
             }
         }
 
@@ -235,7 +270,7 @@ Item {
                             Layout.fillWidth: true
                             implicitHeight: 42
                             iconName: "search"
-                            placeholderText: "Search addons, or paste a GitHub, WoWInterface or Wago link"
+                            placeholderText: "Search addons, or paste a GitHub, WoWInterface, CurseForge or Wago link"
                             Accessible.name: "Search addons"
                             onAccepted: { debounce.stop(); backend.search(text) }
                             onTextChanged: debounce.restart()
@@ -297,7 +332,7 @@ Item {
                             visible: results.count === 0 && !backend.searching && !backend.searched
                             iconName: "globe"
                             heading: "Add an addon to " + backend.clientLabel
-                            detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", plus Wago Addons." : ".") + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
+                            detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", Wago Addons" : "") + (backend.curseKey ? ", CurseForge" : "") + "." + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
                         }
                         Empty {
                             visible: results.count === 0 && !backend.searching && backend.searched && backend.hiddenResults === 0
@@ -458,7 +493,7 @@ Item {
             open()
             linkField.forceActiveFocus()
         }
-        message: "Paste the addon's page on GitHub, WoWInterface or Wago Addons. That page is then checked for new versions."
+        message: "Paste the addon's page on GitHub, WoWInterface, CurseForge or Wago Addons. That page is then checked for new versions."
         confirmText: "Set source"
         confirmEnabled: linkField.text.trim().length > 0
         onConfirmed: if (backend.linkAddon(key, linkField.text)) close()

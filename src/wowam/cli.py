@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from . import __version__, backup, desktop, selfupdate
+from . import __version__, auras, backup, desktop, selfupdate
 from .clients import discover
 from .config import Config
 from .manager import Manager, can_auto_update, needs_update, parse_refs, survey
@@ -119,6 +119,13 @@ def cmd_auto(args, cfg):
     for c in find_clients(cfg):
         done, errors = update_client(c, cfg, quiet=True)
         problems += len(errors)
+        if cfg.get("aura_updates"):
+            try:
+                found = auras.sync(c)
+            except OSError:
+                found = []
+            if found:
+                done = done + [f"{len(found)} WeakAuras ready in game"]
         if done:
             lines.append(f"{c.label}: " + ", ".join(done))
         for e in errors:
@@ -230,7 +237,7 @@ def cmd_self_update(args, cfg):
 def cmd_gui(args, cfg):
     from .gui.app import run
 
-    return run(getattr(args, "uri", "") or "")
+    return run(getattr(args, "uri", "") or "", hidden=bool(getattr(args, "hidden", False)))
 
 
 def build_parser():
@@ -247,7 +254,9 @@ def build_parser():
             sp.add_argument("-a", "--all", action="store_true", help="every install")
         return sp
 
-    add("gui", cmd_gui, "open the window", client=False).add_argument("uri", nargs="?")
+    sp = add("gui", cmd_gui, "open the window", client=False)
+    sp.add_argument("uri", nargs="?")
+    sp.add_argument("--hidden", action="store_true", help="start in the tray when the tray icon is on")
     add("clients", cmd_clients, "list WoW installs", client=False)
     add("status", cmd_status, "show addons and available updates", every=True)
     add("install", cmd_install, "install addons from links").add_argument("refs", nargs="+")

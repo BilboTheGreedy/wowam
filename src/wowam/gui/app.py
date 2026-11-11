@@ -5,10 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PySide6.QtCore import Property, QAbstractListModel, QEvent, QModelIndex, QObject, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import __version__, backup, desktop, history, http, selfupdate, sources
+from .. import __version__, auras, backup, desktop, history, http, launch, selfupdate, sources
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -110,6 +111,7 @@ class Backend(QObject):
     showBrowse = Signal(str)
     updateChanged = Signal()
     historyChanged = Signal()
+    aurasChanged = Signal()
 
     def __init__(self, uri=""):
         super().__init__()
@@ -133,6 +135,8 @@ class Backend(QObject):
         self._update_progress = 0.0
         self._auto_done = set()
         self._found = []
+        self._auras = []
+        self.tray_available = False
         self._addons = ListModel(ADDON_ROLES, self)
         self._clients_model = ListModel(CLIENT_ROLES, self)
         self._browse = ListModel(BROWSE_ROLES, self)
@@ -270,12 +274,18 @@ class Backend(QObject):
             if self.cfg.get("update_on_start") and client.id not in self._auto_done:
                 self._auto_done.add(client.id)
                 update_client(client, self.cfg, quiet=True)
+            if self.cfg.get("aura_updates"):
+                try:
+                    auras.sync(client)
+                except OSError:
+                    pass
             return survey(mgr)
 
         def done(result, err):
             if result is not None:
                 n = sum(1 for a, r, e in result if can_auto_update(a, r))
                 self._clients_model.patch(client.id, updates=n)
+                self.changed.emit()
 
         self._bg(work, done)
 
@@ -392,6 +402,7 @@ class Backend(QObject):
         self._entries = {}
         self._publish()
         mgr = self._mgr(client)
+        self._sync_auras(client, gen)
 
         def done(addons, err):
             if gen != self._gen:
@@ -405,6 +416,103 @@ class Backend(QObject):
                 self._check(a, gen, client)
 
         self._bg(mgr.list, done)
+
+    def _sync_auras(self, client, gen):
+        self._auras = []
+        self.aurasChanged.emit()
+        if not self.cfg.get("aura_updates"):
+            return
+
+        def done(found, err):
+            if gen == self._gen and found:
+                self._auras = found
+                self.aurasChanged.emit()
+
+        self._bg(lambda: auras.sync(client), done)
+
+    @Property(int, notify=aurasChanged)
+    def auraCount(self):
+        return len(self._auras)
+
+    @Property(str, notify=aurasChanged)
+    def auraSummary(self):
+        names = [a["name"] for a in self._auras]
+        return ", ".join(names[:4]) + (f" and {len(names) - 4} more" if len(names) > 4 else "")
+
+    @Property(bool, notify=settingsChanged)
+    def auraUpdates(self):
+        return bool(self.cfg.get("aura_updates"))
+
+    @Slot(bool)
+    def setAuraUpdates(self, on):
+        self.cfg.set("aura_updates", bool(on))
+        self.settingsChanged.emit()
+        client = self._client()
+        if on and client:
+            self._sync_auras(client, self._gen)
+        elif not on:
+            for c in self._clients:
+                auras.remove(c)
+            self._auras = []
+            self.aurasChanged.emit()
+
+    @Property("QVariantList", notify=changed)
+    def otherClients(self):
+        current = self._client()
+        return [{"key": c.id, "label": c.label} for c in self._clients if c is not current]
+
+    @Slot(str)
+    def copyFrom(self, key):
+        client = self._client()
+        other = next((c for c in self._clients if c.id == key), None)
+        if not client or not other or other is client:
+            return
+        have = set(self._mgr(client).refs())
+        refs = [r for r in self._mgr(other).refs() if r not in have]
+        if not refs:
+            self.toast.emit(f"{client.label} already has every addon from {other.label}", False)
+            return
+        count = "1 addon" if len(refs) == 1 else f"{len(refs)} addons"
+        self.toast.emit(f"Installing {count} from {other.label}", False)
+        for ref in refs:
+            self._install(ref, quiet=True)
+
+    @Property(str, notify=changed)
+    def playTip(self):
+        client = self._client()
+        found = launch.plan(client) if client else None
+        return found[2] if found else ""
+
+    @Slot()
+    def play(self):
+        client = self._client()
+        try:
+            started = bool(client) and launch.start(client)
+        except OSError as e:
+            self.toast.emit(str(e), True)
+            return
+        if started:
+            self.toast.emit("Starting the game", False)
+        else:
+            self.toast.emit("Could not find a way to start this install", True)
+
+    @Property(bool, notify=settingsChanged)
+    def trayAvailable(self):
+        return self.tray_available
+
+    @Property(bool, notify=settingsChanged)
+    def trayOn(self):
+        return self.tray_available and bool(self.cfg.get("tray"))
+
+    @Slot(bool)
+    def setTray(self, on):
+        self.cfg.set("tray", bool(on))
+        self.settingsChanged.emit()
+
+    @Slot()
+    def recheck(self):
+        self._auto_done.clear()
+        self._load_clients()
 
     def _reload(self):
         client = self._client()
@@ -915,7 +1023,7 @@ class Backend(QObject):
 
     @Slot(str, str)
     def setText(self, key, value):
-        if key in ("github_token", "wago_key"):
+        if key in ("github_token", "wago_key", "curseforge_key"):
             self.cfg.set(key, value.strip())
             self.settingsChanged.emit()
 
@@ -1097,6 +1205,10 @@ class Backend(QObject):
     def wagoKey(self):
         return self.cfg.get("wago_key")
 
+    @Property(str, notify=settingsChanged)
+    def curseKey(self):
+        return self.cfg.get("curseforge_key")
+
     @Property(bool, notify=settingsChanged)
     def backupOnUpdate(self):
         return bool(self.cfg.get("backup_on_update"))
@@ -1162,9 +1274,77 @@ class UrlFilter(QObject):
         return False
 
 
-def run(uri=""):
+class Tray(QObject):
+    def __init__(self, app, backend, window):
+        super().__init__(app)
+        self.app = app
+        self.backend = backend
+        self.window = window
+        self.seen = 0
+        self.icon = QSystemTrayIcon(app.windowIcon(), self)
+        self.menu = QMenu()
+        for text, fn in (
+            ("Open", self.show),
+            ("Check for updates", backend.recheck),
+            ("Update all", backend.updateAll),
+            (None, None),
+            ("Quit", app.quit),
+        ):
+            if text is None:
+                self.menu.addSeparator()
+                continue
+            action = QAction(text, self.menu)
+            action.triggered.connect(fn)
+            self.menu.addAction(action)
+        self.icon.setContextMenu(self.menu)
+        self.icon.activated.connect(self.clicked)
+        self.timer = QTimer(self)
+        self.timer.setInterval(2 * 3600 * 1000)
+        self.timer.timeout.connect(self.tick)
+        self.timer.start()
+        backend.settingsChanged.connect(self.apply)
+        backend.changed.connect(self.status)
+        self.apply()
+
+    def apply(self):
+        on = bool(self.backend.cfg.get("tray"))
+        self.icon.setVisible(on)
+        self.app.setQuitOnLastWindowClosed(not on)
+
+    def show(self):
+        self.window.show()
+        self.window.raise_()
+        self.window.requestActivate()
+
+    def clicked(self, reason):
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
+            if self.window.isVisible():
+                self.window.hide()
+            else:
+                self.show()
+
+    def tick(self):
+        if not self.window.isVisible() and self.backend.cfg.get("tray"):
+            self.backend.recheck()
+
+    def status(self):
+        rows = self.backend.clients.rows()
+        count = sum(r["updates"] for r in rows)
+        tip = desktop.FULL_NAME
+        if count:
+            tip += "\n" + ("1 addon update ready" if count == 1 else f"{count} addon updates ready")
+        self.icon.setToolTip(tip)
+        if self.backend.checking:
+            return
+        if count > self.seen and not self.window.isVisible() and self.icon.isVisible():
+            text = "1 addon update is ready" if count == 1 else f"{count} addon updates are ready"
+            self.icon.showMessage(desktop.APP_NAME, text, self.app.windowIcon(), 6000)
+        self.seen = count
+
+
+def run(uri="", hidden=False):
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
-    app = QGuiApplication(sys.argv[:1])
+    app = QApplication(sys.argv[:1])
     app.setApplicationName("wowam")
     app.setApplicationDisplayName(desktop.FULL_NAME)
     app.setDesktopFileName("wowam")
@@ -1184,6 +1364,16 @@ def run(uri=""):
         if smoke:
             Path(smoke).write_text("load failed\n" + "\n".join(problems))
         return 1
+    window = engine.rootObjects()[0]
+    tray = None
+    if QSystemTrayIcon.isSystemTrayAvailable():
+        backend.tray_available = True
+        tray = Tray(app, backend, window)
+        backend.settingsChanged.emit()
+    if hidden and backend.trayOn and not uri:
+        window.hide()
+    else:
+        window.show()
     backend.start()
     if smoke:
         QTimer.singleShot(4000, app.quit)
@@ -1196,5 +1386,6 @@ def run(uri=""):
         Path(smoke).write_text("\n".join(problems) if problems else "ok")
         code = 2 if problems else code
     backend.shutdown()
+    del tray
     del engine
     return code

@@ -6,7 +6,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 
-from . import history, http, installer, sources, toc
+from . import auras, history, http, installer, sources, toc
 from .known import KNOWN
 from .paths import cache_dir, data_dir
 from .sources import SourceError
@@ -74,7 +74,7 @@ class Manager:
     def folders(self):
         out = set()
         for name in self.all_dirs():
-            if name.startswith("Blizzard_"):
+            if name.startswith("Blizzard_") or name == auras.FOLDER:
                 continue
             if toc.find(self.client.addons_dir / name, self.client.flavor):
                 out.add(name)
@@ -131,6 +131,12 @@ class Manager:
                 out.append(f"wago:{wago}")
             else:
                 note = "On Wago Addons, which needs an API key"
+        curse = fields.get("x-curse-project-id", "")
+        if curse.isdigit():
+            if self.cfg.get("curseforge_key"):
+                out.append(f"cf:{curse}")
+            elif not out and not note:
+                note = "On CurseForge, which needs an API key"
         seen = []
         for ref in out:
             if ref not in seen:

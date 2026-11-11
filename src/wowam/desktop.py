@@ -16,6 +16,7 @@ BUNDLE_ID = "org.wowam.app"
 AGENT_ID = "org.wowam.update"
 TASK = "wowam-update"
 SCHEMES = ("wago-app",)
+START = ["gui", "--hidden"]
 
 
 def command(gui=False):
@@ -410,12 +411,12 @@ def enable_autostart():
         import winreg
 
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
-            winreg.SetValueEx(key, APP_ID, 0, winreg.REG_SZ, subprocess.list2cmdline(command(gui=True)))
+            winreg.SetValueEx(key, APP_ID, 0, winreg.REG_SZ, subprocess.list2cmdline(command(gui=True) + START))
     elif MAC:
         path = login_agent_file()
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
-            plistlib.dump({"Label": BUNDLE_ID, "ProgramArguments": command(), "RunAtLoad": True}, f)
+            plistlib.dump({"Label": BUNDLE_ID, "ProgramArguments": command() + START, "RunAtLoad": True}, f)
     else:
         path = autostart_file()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -423,7 +424,7 @@ def enable_autostart():
             "[Desktop Entry]\n"
             "Type=Application\n"
             f"Name={APP_NAME}\n"
-            f"Exec={_quote(command())}\n"
+            f"Exec={_quote(command() + START)}\n"
             f"Icon={APP_ID}\n"
             "Terminal=false\n"
         )

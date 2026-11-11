@@ -14,6 +14,9 @@ DEFAULTS = {
     "update_on_start": False,
     "browse_listed": "",
     "theme": "",
+    "curseforge_key": "",
+    "tray": False,
+    "aura_updates": True,
 }
 
 

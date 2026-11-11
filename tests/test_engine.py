@@ -8,7 +8,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from wowam import backup, clients, installer, manager, sources, toc
+import shutil
+import subprocess
+
+from wowam import auras, backup, clients, installer, launch, manager, sources, toc
 from wowam.sources import Release
 
 
@@ -343,3 +346,81 @@ class ManagerTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtraTests(Base):
+    def test_curseforge(self):
+        self.assertEqual(sources.parse_ref("https://www.curseforge.com/wow/addons/Deadly-Boss-Mods/files"), "cf:deadly-boss-mods")
+        self.assertEqual(sources.parse_ref("curse:3358"), "cf:3358")
+        self.assertEqual(sources.label("cf:3358"), "CurseForge")
+        with self.assertRaises(sources.SourceError):
+            sources.latest("cf:3358", self.client, Cfg())
+        seen = []
+
+        def fake(url, headers=None, etag=False, max_age=0, timeout=30):
+            seen.append(url)
+            self.assertEqual(headers["x-api-key"], "k")
+            if "/files" in url:
+                return {
+                    "data": [
+                        {"displayName": "old", "fileDate": "2026-01-01", "releaseType": 1, "downloadUrl": "u1"},
+                        {"displayName": "beta", "fileDate": "2026-03-01", "releaseType": 2, "downloadUrl": "u3"},
+                        {"displayName": "new", "fileDate": "2026-02-01", "releaseType": 1, "downloadUrl": "u2"},
+                    ]
+                }
+            if "slug=" in url:
+                return {"data": [{"id": 7, "name": "Thing", "authors": [{"name": "me"}], "links": {"websiteUrl": "w"}}]}
+            return {"data": {"id": 7, "name": "Thing", "authors": [{"name": "me"}], "links": {"websiteUrl": "w"}}}
+
+        cfg = Cfg(curseforge_key="k")
+        with mock.patch.object(sources.http, "get_json", fake):
+            rel = sources.latest("cf:thing", self.client, cfg)
+            self.assertEqual((rel.version, rel.url, rel.name, rel.author), ("new", "u2", "Thing", "me"))
+            self.assertIn("gameVersionTypeId=517", seen[-1])
+            self.assertEqual(sources.latest("cf:7", self.client, cfg, "beta").version, "beta")
+
+    def test_auras(self):
+        self.assertEqual(auras.sync(self.client), [])
+        self.add_folder("WeakAuras", "## Title: WeakAuras\n")
+        saved = self.client.wtf_dir / "Account/ACC/SavedVariables/WeakAuras.lua"
+        saved.write_text(
+            'WeakAurasSaved = {\n["displays"] = {\n["A"] = {\n["url"] = "https://wago.io/abc/3",\n},\n'
+            '["B"] = {\n["url"] = "https://wago.io/abc/2",\n},\n["C"] = {\n["url"] = "https://wago.io/Named",\n},\n'
+            '["D"] = {\n["url"] = "",\n},\n}\n}\n'
+        )
+        self.assertEqual(auras.local(self.client), {"abc": 2, "Named": 1})
+        reply = [
+            {"_id": "abc", "slug": "pretty", "name": "One ]=] two", "username": "me", "version": 5, "versionString": "1.0.4", "changelog": {"text": "x"}},
+            {"_id": "zzz", "slug": "Named", "name": "Same", "username": "me", "version": 1, "versionString": "1.0.0", "changelog": {}},
+        ]
+
+        def fake_download(url, dest, headers=None, progress=None, timeout=60):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text("!WA:2!abc")
+            return dest
+
+        with mock.patch.object(auras.http, "get_json", return_value=reply), mock.patch.object(auras.http, "download", fake_download):
+            found = auras.sync(self.client)
+        self.assertEqual(found, [{"name": "One ]=] two", "old": 2, "new": 5}])
+        folder = self.addons / auras.FOLDER
+        data = (folder / "Data.lua").read_text()
+        self.assertIn('[=[abc]=]', data)
+        self.assertIn("[==[One ]=] two]==]", data)
+        self.assertNotIn(auras.FOLDER, [a.name for a in manager.Manager(self.client, Cfg()).list()])
+        if shutil.which("luac"):
+            for name in ("Data.lua", "Init.lua"):
+                self.assertEqual(subprocess.run(["luac", "-p", str(folder / name)]).returncode, 0)
+        with mock.patch.object(auras.http, "get_json", return_value=[]):
+            self.assertEqual(auras.sync(self.client), [])
+        self.assertNotIn("abc", (folder / "Data.lua").read_text())
+
+    @unittest.skipIf(sys.platform in ("win32", "darwin"), "wine only")
+    def test_launch(self):
+        self.assertEqual(launch.wine_prefix(self.client), self.home / "Games/battlenet")
+        games = self.home / "data/lutris/games"
+        games.mkdir(parents=True)
+        (games / "battlenet-1.yml").write_text(f"game:\n  exe: x\n  prefix: {self.home}/Games/battlenet\ngame_slug: battlenet\n")
+        with mock.patch.object(launch.shutil, "which", lambda name: "/usr/bin/" + name if name == "lutris" else None):
+            self.assertEqual(launch.plan(self.client)[0], ["lutris", "lutris:rungame/battlenet"])
+        with mock.patch.object(launch.shutil, "which", lambda name: None):
+            self.assertIsNone(launch.plan(self.client))

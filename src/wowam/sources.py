@@ -8,8 +8,11 @@ from . import http
 from .clients import flavor_of_version
 from .http import HttpError
 
-LABELS = {"gh": "GitHub", "wowi": "WoWInterface", "tukui": "Tukui", "wago": "Wago"}
-ALIASES = {"github": "gh", "wa": "wago", "wowinterface": "wowi"}
+LABELS = {"gh": "GitHub", "wowi": "WoWInterface", "tukui": "Tukui", "wago": "Wago", "cf": "CurseForge"}
+ALIASES = {"github": "gh", "wa": "wago", "wowinterface": "wowi", "curse": "cf", "curseforge": "cf"}
+
+CF_API = "https://api.curseforge.com/v1"
+CF_TYPE = {"mainline": 517, "classic": 67408, "bcc": 73246, "wrath": 73713, "titan": 73713, "cata": 77522, "mists": 79434}
 
 WAGO_GAME = {
     "mainline": "retail",
@@ -59,7 +62,7 @@ def parse_ref(text):
     m = re.match(r"wago-app://addons/([\w.-]+)", t, re.I)
     if m:
         return f"wago:{m.group(1)}"
-    m = re.match(r"(?i)^(gh|github|wowi|wowinterface|tukui|wago|wa):(.+)$", t)
+    m = re.match(r"(?i)^(gh|github|wowi|wowinterface|tukui|wago|wa|cf|curse|curseforge):(.+)$", t)
     if m and not m.group(2).startswith("//"):
         src = m.group(1).lower()
         src = ALIASES.get(src, src)
@@ -70,7 +73,7 @@ def parse_ref(text):
         elif src == "wowi":
             if not ident.isdigit():
                 return None
-        elif src == "tukui":
+        elif src in ("tukui", "cf"):
             ident = ident.lower()
         if not re.fullmatch(r"[\w./-]+", ident):
             return None
@@ -87,6 +90,9 @@ def parse_ref(text):
     m = re.search(r"addons\.wago\.io/addons/([\w.-]+)", t, re.I)
     if m:
         return f"wago:{m.group(1)}"
+    m = re.search(r"curseforge\.com/wow/addons/([\w-]+)", t, re.I)
+    if m:
+        return f"cf:{m.group(1).lower()}"
     m = re.search(r"tukui\.org/(elvui|tukui)\b", t, re.I)
     if m:
         return f"tukui:{m.group(1).lower()}"
@@ -116,6 +122,10 @@ def page_of(ref):
         return f"https://addons.wago.io/addons/{ident}"
     if src == "tukui":
         return f"https://tukui.org/{ident}"
+    if src == "cf":
+        if ident.isdigit():
+            return f"https://www.curseforge.com/projects/{ident}"
+        return f"https://www.curseforge.com/wow/addons/{ident}"
     return ""
 
 
@@ -307,7 +317,66 @@ def _wago_latest(ident, client, cfg, channel):
     )
 
 
-_LATEST = {"gh": _gh_latest, "wowi": _wowi_latest, "tukui": _tukui_latest, "wago": _wago_latest}
+def _cf_headers(cfg):
+    key = cfg.get("curseforge_key")
+    if not key:
+        raise SourceError("CurseForge needs an API key. Add one in Settings.")
+    return {"x-api-key": key, "Accept": "application/json"}
+
+
+def _cf_error(e):
+    if e.status in (401, 403):
+        return SourceError("CurseForge rejected the API key set in Settings.")
+    if e.status == 404:
+        return SourceError("This addon was not found on CurseForge.")
+    return SourceError(str(e))
+
+
+def _cf_get(path, cfg, max_age=0):
+    try:
+        data = http.get_json(CF_API + path, _cf_headers(cfg), max_age=max_age)
+    except HttpError as e:
+        raise _cf_error(e) from e
+    return data.get("data") if isinstance(data, dict) else None
+
+
+def _cf_mod(ident, cfg):
+    if ident.isdigit():
+        mod = _cf_get(f"/mods/{ident}", cfg, 3600)
+    else:
+        hits = _cf_get(f"/mods/search?gameId=1&slug={quote(ident)}", cfg, 3600) or []
+        mod = hits[0] if hits else None
+    if not isinstance(mod, dict) or not mod.get("id"):
+        raise SourceError("This addon was not found on CurseForge.")
+    return mod
+
+
+def _cf_author(mod):
+    return ", ".join(a.get("name", "") for a in mod.get("authors") or [] if a.get("name"))
+
+
+def _cf_latest(ident, client, cfg, channel):
+    mod = _cf_mod(ident, cfg)
+    kind = CF_TYPE.get(client.flavor)
+    path = f"/mods/{mod['id']}/files?pageSize=30" + (f"&gameVersionTypeId={kind}" if kind else "")
+    files = [f for f in _cf_get(path, cfg) or [] if f.get("isAvailable", True)]
+    wanted = (1,) if channel == "stable" else (1, 2, 3)
+    picks = [f for f in files if f.get("releaseType") in wanted] or files
+    if not picks:
+        raise SourceError(f"No CurseForge file for {client.label}.")
+    newest = max(picks, key=lambda f: f.get("fileDate", ""))
+    if not newest.get("downloadUrl"):
+        raise SourceError("The author only allows this addon to be downloaded with the CurseForge app.")
+    return Release(
+        version=str(newest.get("displayName") or newest.get("fileName") or ""),
+        url=newest["downloadUrl"],
+        name=mod.get("name", ""),
+        author=_cf_author(mod),
+        page=(mod.get("links") or {}).get("websiteUrl", ""),
+    )
+
+
+_LATEST = {"gh": _gh_latest, "wowi": _wowi_latest, "tukui": _tukui_latest, "wago": _wago_latest, "cf": _cf_latest}
 
 
 def latest(ref, client, cfg, channel="stable"):
@@ -427,6 +496,34 @@ def _search_wago(query, client, cfg):
     return out
 
 
+def _search_cf(query, client, cfg):
+    if not cfg.get("curseforge_key"):
+        return []
+    kind = CF_TYPE.get(client.flavor)
+    path = f"/mods/search?gameId=1&searchFilter={quote_plus(query)}&sortField=6&sortOrder=desc&pageSize=20"
+    try:
+        hits = _cf_get(path + (f"&gameVersionTypeId={kind}" if kind else ""), cfg, 900) or []
+    except SourceError:
+        return []
+    out = []
+    for mod in hits:
+        if not mod.get("id"):
+            continue
+        out.append(
+            _result(
+                f"cf:{mod['id']}",
+                mod.get("name", ""),
+                _cf_author(mod),
+                "",
+                int(mod.get("downloadCount") or 0),
+                mod.get("summary", ""),
+                "yes" if kind else "unknown",
+                (mod.get("links") or {}).get("websiteUrl", ""),
+            )
+        )
+    return out
+
+
 def _gh_manifest(full_name):
     try:
         data = http.get_json(f"https://github.com/{full_name}/releases/latest/download/release.json", max_age=3600)
@@ -486,6 +583,7 @@ def search(query, client, cfg, limit=60):
         _search_tukui(words, client)
         + _search_github(query, client, cfg)
         + _search_wago(query, client, cfg)
+        + _search_cf(query, client, cfg)
         + _search_wowi(words, client)
     )
     exact = query.lower()

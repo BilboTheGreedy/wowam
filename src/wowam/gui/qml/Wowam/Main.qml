@@ -10,11 +10,20 @@ ApplicationWindow {
     height: 740
     minimumWidth: 780
     minimumHeight: 520
-    visible: true
+    visible: false
     title: backend.fullName
     color: Theme.bg
 
     property bool settingsOpen: false
+
+    onClosing: (close) => {
+        if (backend.trayOn) {
+            close.accepted = false
+            window.hide()
+        } else {
+            Qt.quit()
+        }
+    }
 
     Binding { target: Theme; property: "mode"; value: backend.themeMode }
 

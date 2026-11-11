@@ -88,6 +88,12 @@ Item {
                     Toggle { value: backend.autostart; Accessible.name: "Start when I log in"; onRequested: (on) => backend.setAutostart(on) }
                 }
                 Line {
+                    visible: backend.trayAvailable
+                    label: "Keep running in the tray"
+                    detail: "Closing the window leaves an icon in the system tray that checks for updates every two hours. With Start when I log in, the app starts there without opening a window."
+                    Toggle { value: backend.trayOn; Accessible.name: "Keep running in the tray"; onRequested: (on) => backend.setTray(on) }
+                }
+                Line {
                     label: "Update addons when the app opens"
                     detail: "Installs every available update for all your installs as soon as the window opens. Pinned addons and ones you changed are left alone."
                     Toggle { value: backend.updateOnStart; Accessible.name: "Update addons when the app opens"; onRequested: (on) => backend.setUpdateOnStart(on) }
@@ -96,6 +102,11 @@ Item {
                     label: "Update addons in the background"
                     detail: "Checks every six hours while you are logged in and shows a notification when something was updated."
                     Toggle { value: backend.timer; Accessible.name: "Update addons in the background"; onRequested: (on) => backend.setTimer(on) }
+                }
+                Line {
+                    label: "Check WeakAuras for updates"
+                    detail: "Looks up the auras you imported from wago.io and hands new versions to WeakAuras, which offers them the next time you log in or reload."
+                    Toggle { value: backend.auraUpdates; Accessible.name: "Check WeakAuras for updates"; onRequested: (on) => backend.setAuraUpdates(on) }
                 }
                 Line {
                     label: "Show in the app launcher"
@@ -193,6 +204,12 @@ Item {
                     detail: "Optional. Without one, GitHub allows about 60 checks an hour, which is enough for most addon lists. A token with no extra permissions raises that limit."
                 }
                 Secret {
+                    label: "CurseForge API key"
+                    value: backend.curseKey
+                    settingKey: "curseforge_key"
+                    detail: "Optional. Free from console.curseforge.com. With a key, CurseForge addons show up in Browse and can be installed and updated, except the ones whose authors only allow the CurseForge app."
+                }
+                Secret {
                     label: "Wago Addons API key"
                     value: backend.wagoKey
                     settingKey: "wago_key"
@@ -220,6 +237,20 @@ Item {
                     }
                 }
                 Btn { text: "Copy my addon list"; iconName: "copy"; enabled: backend.hasClient; onClicked: backend.copyList() }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    visible: backend.otherClients.length > 0
+                    Repeater {
+                        model: backend.otherClients
+                        Btn {
+                            required property var modelData
+                            text: "Install the addons from " + modelData.label
+                            iconName: "download"
+                            onClicked: backend.copyFrom(modelData.key)
+                        }
+                    }
+                }
             }
 
             Card {
