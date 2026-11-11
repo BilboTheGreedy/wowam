@@ -132,6 +132,8 @@ ApplicationWindow {
         function onToast(message, isError) { toast.show(message, isError) }
         function onListReady(item) { listDialog.show(item) }
         function onShareRequested(data) { shareDialog.show(data) }
+        function onPackReady(data) { packDialog.show(data) }
+        function onExportRequested(data) { exportDialog.show(data) }
         function onPublished(url) { shareDialog.busy = false; shareDialog.link = url }
         function onShowBrowse(text) {
             window.settingsOpen = false
@@ -206,6 +208,121 @@ ApplicationWindow {
                     color: index === tour.step ? Theme.accent : Theme.tint(Theme.sub, 0.35)
                 }
             }
+        }
+    }
+
+    component Picker: ListView {
+        id: picker
+        property string picked: ""
+        Layout.fillWidth: true
+        Layout.preferredHeight: Math.min(contentHeight, 150)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        delegate: RowLayout {
+            id: opt
+            required property var modelData
+            readonly property bool on: picker.picked === modelData.key
+            width: ListView.view.width - 12
+            height: 30
+            spacing: 10
+            Accessible.role: Accessible.RadioButton
+            Accessible.name: modelData.label
+            Accessible.checked: on
+            TapHandler { onTapped: picker.picked = opt.modelData.key }
+            Rectangle {
+                implicitWidth: 18
+                implicitHeight: 18
+                radius: 9
+                color: "transparent"
+                border.color: opt.on ? Theme.accent : Theme.sub
+                border.width: opt.on ? 5 : 1.5
+            }
+            Text {
+                Layout.fillWidth: true
+                text: opt.modelData.label
+                color: Theme.text
+                font.pixelSize: Theme.body
+                elide: Text.ElideRight
+            }
+        }
+    }
+
+    component Caption: Text {
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        color: Theme.sub
+        font.pixelSize: Theme.small
+        font.weight: Font.DemiBold
+        wrapMode: Text.WordWrap
+    }
+
+    Modal {
+        id: packDialog
+        property var pack: ({ path: "", sources: [], targets: [], addons: 0, bundled: 0, files: 0 })
+        function show(data) {
+            pack = data
+            title = "Import " + data.name
+            var bits = []
+            if (data.by) bits.push("by " + data.by)
+            if (data.game) bits.push(data.game)
+            bits.push(data.files + " settings files")
+            if (data.addons) bits.push(data.addons + " addons to install")
+            if (data.bundled) bits.push(data.bundled + " addons included")
+            message = bits.join("  ·  ")
+            fromPick.picked = data.sources.length > 0 ? data.sources[0].key : ""
+            toPick.picked = data.targets.length === 1 ? data.targets[0].key : ""
+            open()
+        }
+        width: Math.min(520, parent ? parent.width - 48 : 520)
+        confirmText: "Import to " + backend.clientLabel
+        confirmEnabled: toPick.picked !== ""
+        onConfirmed: { backend.importPack(pack.path, fromPick.picked, toPick.picked); close() }
+        Caption { visible: packDialog.pack.sources.length > 1; text: "Copy the settings of" }
+        Picker { id: fromPick; visible: packDialog.pack.sources.length > 1; model: packDialog.pack.sources }
+        Caption { visible: packDialog.pack.targets.length > 0; text: "Give them to your character" }
+        Picker { id: toPick; model: packDialog.pack.targets }
+        Text {
+            Layout.fillWidth: true
+            text: packDialog.pack.targets.length === 0
+                ? "No characters found in " + backend.clientLabel + ". Log in to the game with your character once, then import again."
+                : "Your current settings are backed up first, so you can go back in Settings. Close the game before importing."
+            color: Theme.sub
+            font.pixelSize: Theme.small
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    Modal {
+        id: exportDialog
+        property var info: ({ chars: [], game: "" })
+        function show(d) {
+            info = d
+            title = "Save your " + d.game + " interface as a pack"
+            fromChar.picked = d.chars.length === 1 ? d.chars[0].key : ""
+            open()
+            packName.forceActiveFocus()
+        }
+        width: Math.min(520, parent ? parent.width - 48 : 520)
+        message: "The pack holds your addon list and the settings of those addons for one character. Others import it with this app and pick their own character."
+        confirmText: "Save pack"
+        confirmEnabled: fromChar.picked !== ""
+        onConfirmed: { backend.exportPack(fromChar.picked, packName.text); close() }
+        Field {
+            id: packName
+            Layout.fillWidth: true
+            placeholderText: "Name, for example Healer UI"
+            maximumLength: 60
+            Accessible.name: "Pack name"
+        }
+        Caption { text: "Character to take the settings from" }
+        Picker { id: fromChar; model: exportDialog.info.chars }
+        Text {
+            Layout.fillWidth: true
+            text: "Your character and realm name are replaced with placeholders, but addon settings can still hold other names, such as alts, friends or guild members. Look through the zip before you post it."
+            color: Theme.sub
+            font.pixelSize: Theme.small
+            wrapMode: Text.WordWrap
         }
     }
 

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import shutil
 import subprocess
 
-from wowam import auras, backup, clients, installer, launch, lists, manager, sources, toc
+from wowam import auras, backup, clients, installer, launch, lists, manager, sources, toc, uipack
 from wowam.sources import Release
 
 
@@ -593,3 +593,71 @@ class AddonRestoreTests(unittest.TestCase):
             self.assertEqual(count, 1)
             self.assertEqual((sv / "Foo.lua").read_text(), "old foo")
             self.assertEqual((sv / "Bar.lua").read_text(), "new bar")
+
+
+class PackTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        self.env = mock.patch.dict(os.environ, {"XDG_DATA_HOME": str(self.home / "data")})
+        self.env.start()
+        self.client = clients.Client(self.home / "wow" / "_retail_", "_retail_", "wow", "12.0.0.1", "mainline", "Retail")
+        self.client.addons_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def char(self, acct, realm, name):
+        d = self.client.wtf_dir / "Account" / acct / realm / name / "SavedVariables"
+        d.mkdir(parents=True)
+        (self.client.wtf_dir / "Account" / acct / "SavedVariables").mkdir(exist_ok=True)
+        return d
+
+    def test_round_trip(self):
+        sv = self.char("ME", "Tarren Mill", "Thrall")
+        acct = self.client.wtf_dir / "Account" / "ME" / "SavedVariables"
+        (acct / "Foo.lua").write_text('FooDB = { ["profileKeys"] = { ["Thrall - Tarren Mill"] = "Main" }, ["x"] = "Thrall-TarrenMill" }')
+        (acct / "Other.lua").write_text("OtherDB = {}")
+        (sv / "Foo.lua").write_text('FooChar = { name = "Thrall" }')
+        self.assertEqual(uipack.chars(self.client), [("ME", "Tarren Mill", "Thrall")])
+        out = uipack.export(self.client, ("ME", "Tarren Mill", "Thrall"), ["Foo"], ["gh:a/foo"], self.home / "p.zip", "My UI", "me")
+        self.assertEqual(out["files"], 2)
+        with zipfile.ZipFile(self.home / "p.zip") as zf:
+            body = "".join(zf.read(n).decode() for n in zf.namelist())
+        self.assertNotIn("Thrall", body)
+        self.assertNotIn("Tarren", body)
+        self.assertNotIn("ME/", body)
+        info = uipack.inspect(self.home / "p.zip")
+        self.assertEqual((info["name"], info["addons"], info["files"]), ("My UI", ["gh:a/foo"], 2))
+        self.assertEqual(info["chars"], [("ACCOUNT", "Realm", "Character")])
+        dst = self.char("YOU", "Draenor", "Jaina")
+        res = uipack.apply(self.client, self.home / "p.zip", info["chars"][0], ("YOU", "Draenor", "Jaina"))
+        self.assertEqual(res["settings"], 2)
+        shared = (self.client.wtf_dir / "Account" / "YOU" / "SavedVariables" / "Foo.lua").read_text()
+        self.assertIn('["Jaina - Draenor"] = "Main"', shared)
+        self.assertIn('"Jaina-Draenor"', shared)
+        self.assertEqual((dst / "Foo.lua").read_text(), 'FooChar = { name = "Jaina" }')
+        self.assertTrue(backup.entries(self.client))
+
+    def test_hand_made_pack(self):
+        make_zip(self.home / "ui.zip", {
+            "MyUI/Interface/AddOns/Bar/Bar.toc": "## Title: Bar\n",
+            "MyUI/Interface/AddOns/Bar/core.lua": "x",
+            "MyUI/WTF/Account/STREAMER/SavedVariables/Bar.lua": 'BarDB = { ["Zug - Stormrage"] = 1 }',
+            "MyUI/WTF/Account/STREAMER/Stormrage/Zug/SavedVariables/Bar.lua": "BarChar = {}",
+            "MyUI/WTF/Account/STREAMER/Stormrage/Alt/SavedVariables/Bar.lua": "nope",
+            "MyUI/readme.txt": "hi",
+        })
+        info = uipack.inspect(self.home / "ui.zip")
+        self.assertEqual(info["bundled"], ["Bar"])
+        self.assertEqual(info["chars"], [("STREAMER", "Stormrage", "Alt"), ("STREAMER", "Stormrage", "Zug")])
+        dst = self.char("YOU", "Draenor", "Jaina")
+        res = uipack.apply(self.client, self.home / "ui.zip", ("STREAMER", "Stormrage", "Zug"), ("YOU", "Draenor", "Jaina"))
+        self.assertEqual(res, {"settings": 2, "addons": ["Bar"]})
+        self.assertTrue((self.client.addons_dir / "Bar" / "core.lua").is_file())
+        self.assertEqual((dst / "Bar.lua").read_text(), "BarChar = {}")
+        self.assertIn("Jaina - Draenor", (self.client.wtf_dir / "Account/YOU/SavedVariables/Bar.lua").read_text())
+        self.assertIsNone(uipack.inspect(self.home / "nothing.zip"))
+        make_zip(self.home / "addon.zip", {"Foo/Foo.toc": "## Title: Foo\n"})
+        self.assertIsNone(uipack.inspect(self.home / "addon.zip"))

@@ -8,6 +8,7 @@ A free addon manager with a real GUI for Linux, Windows and macOS. Works with Re
 - installs and updates addons from GitHub, WoWInterface and Tukui with no account or key
 - **share a whole addon setup with one link**, or install and follow somebody else's
 - drop a downloaded zip onto the window to install it
+- import a whole interface pack (addons and their settings) onto your own character
 - changelogs, pin a version, go back to the previous one
 - backs up your settings before it updates anything
 - keeps WeakAuras from wago.io up to date
@@ -74,6 +75,14 @@ wowi:12345
 ```
 
 The same list works on any WoW version, the app picks the right files for the install you put it on.
+
+## Interface packs
+
+Want somebody's whole interface, not only their addons? A pack is a zip with the addon list and the addon settings of one character.
+
+- **Import**: drop the zip onto the window, or paste a link to it into Browse. Pick which of your characters should get it. The app backs up your settings, installs the addons, copies the settings to your account and character, and renames the profiles inside them to your character and realm.
+- **Make one**: Settings, Addon list, "Save my interface as a pack". Pick the character and give it a name. The zip lands in your Downloads folder, upload it wherever you like.
+- Zips made by hand with an `Interface` and a `WTF` folder inside work too.
 
 ## More
 

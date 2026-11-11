@@ -56,6 +56,23 @@ When you open a shared setup you can turn on "Follow this setup". From then on t
 
 Settings, Addon list shows what you follow and has "Stop following".
 
+## Interface packs
+
+A pack is a zip with a `wowam-ui.json` (name and addon list) and a `WTF` folder holding the addon settings of one character, with the names replaced by `ACCOUNT`, `Realm` and `Character`.
+
+Importing:
+
+1. Close the game.
+2. Drop the zip onto the window, use "From a zip file" in Browse, or paste a link that ends in `.zip`.
+3. Pick the character that should get the settings. If the pack holds more than one character, pick which one to copy.
+4. The app makes a backup, copies the account settings to your account and the character settings to your character, changes profile names such as `Thrall - Tarren Mill` to your own, and installs the addons.
+
+The character has to exist in the game folder, so log in with it once before importing. Only addon settings are touched, not keybinds or macros. To undo, restore the backup in Settings.
+
+Hand-made packs with `Interface/AddOns` and `WTF/Account/...` inside work the same way. The addons in them are copied in as they are.
+
+Making one: Settings, Addon list, "Save my interface as a pack". It takes the addons the app tracks and their settings. Your character and realm names are replaced, but settings files can still contain other names, so have a look before you post it.
+
 ## Sources and keys
 
 | Source | Needs |

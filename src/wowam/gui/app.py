@@ -1,15 +1,18 @@
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PySide6.QtCore import Property, QAbstractListModel, QEvent, QModelIndex, QObject, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import (
+    Property, QAbstractListModel, QEvent, QModelIndex, QObject, QStandardPaths, Qt, QTimer, QUrl, Signal, Slot,
+)
 from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import __version__, auras, backup, desktop, history, http, launch, lists, selfupdate, sources
+from .. import __version__, auras, backup, desktop, history, http, launch, lists, selfupdate, sources, uipack
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -124,6 +127,8 @@ class Backend(QObject):
     shareRequested = Signal("QVariant")
     published = Signal(str)
     followsChanged = Signal()
+    packReady = Signal("QVariant")
+    exportRequested = Signal("QVariant")
 
     def __init__(self, uri=""):
         super().__init__()
@@ -141,6 +146,7 @@ class Backend(QObject):
         self._searching = False
         self._shared = []
         self._setup_changes = {}
+        self._packs = {}
         self._attention = False
         self.window = None
         self._tick = QTimer(self)
@@ -893,6 +899,9 @@ class Backend(QObject):
         text = text.strip()
         self._search_gen += 1
         gen = self._search_gen
+        if client and re.fullmatch(r"https://\S+\.zip(\?\S*)?", text, re.I):
+            self._fetch_pack(text)
+            text = ""
         if client and lists.list_url(text):
             self.openListUrl(text)
             text = ""
@@ -1205,15 +1214,132 @@ class Backend(QObject):
             return
         mgr = self._mgr(client)
 
-        def done(rec, err):
+        def work():
+            info = uipack.inspect(path)
+            return ("pack", info) if info else ("addon", mgr.install_file(path))
+
+        def done(result, err):
+            if err:
+                self.toast.emit(err, True)
+                return
+            kind, rec = result
+            if kind == "pack":
+                self._offer_pack(client, path, rec)
+                return
+            self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
+            self.historyChanged.emit()
+            self._reload()
+
+        self._bg(work, done)
+
+    @staticmethod
+    def _char_rows(found):
+        many = len({c[0] for c in found}) > 1
+        return [
+            {"key": "|".join(c), "label": f"{c[2]} - {c[1]}" + (f"  ({c[0]})" if many else "")}
+            for c in found
+        ]
+
+    def _offer_pack(self, client, path, info):
+        self._packs[path] = info
+        self.packReady.emit({
+            "path": path,
+            "name": info["name"],
+            "by": info["by"],
+            "game": info["game"],
+            "addons": len(info["addons"]),
+            "bundled": len(info["bundled"]),
+            "files": info["files"],
+            "sources": self._char_rows(info["chars"]),
+            "targets": self._char_rows(uipack.chars(client)),
+        })
+
+    @Slot(str, str, str)
+    def importPack(self, path, src_key, dst_key):
+        client = self._client()
+        info = self._packs.get(path)
+        if not client or not info or not dst_key:
+            return
+        src = tuple(src_key.split("|")) if src_key else ((info["accounts"] or [""])[0], "", "")
+        dst = tuple(dst_key.split("|"))
+        if len(src) != 3 or len(dst) != 3 or dst not in uipack.chars(client):
+            return
+        mgr = self._mgr(client)
+        keep = self.cfg.get("backup_keep")
+
+        def done(result, err):
+            if err:
+                self.toast.emit(err, True)
+                return
+            have = set(mgr.refs())
+            todo = [r for r in parse_refs(" ".join(info["addons"])) if r not in have]
+            parts = [f"{result['settings']} settings files"]
+            if result["addons"]:
+                parts.append(f"{len(result['addons'])} bundled addons")
+            if todo:
+                parts.append(f"installing {len(todo)} addons")
+            self.toast.emit(f"Imported {info['name']} for {dst[2]}: " + ", ".join(parts), False)
+            self.backupsChanged.emit()
+            for ref in todo:
+                self._install(ref, quiet=True)
+            self._reload()
+
+        self._bg(lambda: uipack.apply(client, path, src, dst, keep), done)
+
+    @Slot()
+    def openExport(self):
+        client = self._client()
+        if not client:
+            return
+        found = uipack.chars(client)
+        if not found:
+            self.toast.emit("No characters found. Log in to the game once first.", True)
+            return
+        self.exportRequested.emit({"chars": self._char_rows(found), "game": client.label})
+
+    @Slot(str, str)
+    def exportPack(self, key, name):
+        client = self._client()
+        src = tuple(key.split("|"))
+        if not client or len(src) != 3 or src not in uipack.chars(client):
+            return
+        mgr = self._mgr(client)
+        name = " ".join(name.split())[:60] or "My interface"
+        slug = "".join(ch if ch.isalnum() else "-" for ch in name.lower()).strip("-") or "interface"
+        folder = QStandardPaths.writableLocation(QStandardPaths.DownloadLocation) or str(Path.home())
+        dest = Path(folder) / f"{slug}-wowam-ui.zip"
+
+        def work():
+            managed = [a for a in mgr.list() if a.managed and not a.off]
+            folders = [d for a in managed for d in a.dirs]
+            return uipack.export(client, src, folders, [a.ref for a in managed], dest, name)
+
+        def done(result, err):
+            if err:
+                self.toast.emit(err, True)
+                return
+            self.toast.emit(f"Saved {dest.name} in {dest.parent}", False)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(dest.parent)))
+
+        self._bg(work, done)
+
+    def _fetch_pack(self, url):
+        dest = http.cache_dir() / "dl" / f"pack-{time.monotonic_ns()}.zip"
+        self.toast.emit("Downloading", False)
+
+        def done(result, err):
             if err:
                 self.toast.emit(err, True)
             else:
-                self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
-                self.historyChanged.emit()
-            self._reload()
+                self.installFile(str(dest))
 
-        self._bg(lambda: mgr.install_file(path), done)
+        def work():
+            try:
+                http.download(url, dest)
+            except http.HttpError as e:
+                raise SourceError(f"Download failed: {e}") from e
+
+        self._bg(work, done)
 
     @Slot(str)
     def installDep(self, name):
