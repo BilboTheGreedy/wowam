@@ -39,6 +39,7 @@ ApplicationWindow {
         spacing: 0
 
         Sidebar {
+            id: sidebar
             Layout.preferredWidth: 236
             Layout.fillHeight: true
             settingsOpen: window.settingsOpen
@@ -97,7 +98,7 @@ ApplicationWindow {
                 Layout.fillHeight: true
                 currentIndex: window.settingsOpen ? 1 : 0
                 AddonsPage { id: addonsPage; onAddFolderRequested: folderDialog.open(); onZipRequested: zipDialog.open() }
-                SettingsPage { onAddFolderRequested: folderDialog.open(); onTourRequested: tour.start() }
+                SettingsPage { id: settingsPage; onAddFolderRequested: folderDialog.open(); onTourRequested: tour.start() }
             }
         }
     }
@@ -145,71 +146,75 @@ ApplicationWindow {
         }
     }
 
-    Modal {
+    Tour {
         id: tour
-        property int step: 0
-        readonly property var steps: [
+        function home(tab) {
+            window.settingsOpen = false
+            addonsPage.showTab(tab)
+        }
+        function settings() {
+            window.settingsOpen = true
+        }
+        steps: [
             {
                 title: "Welcome",
-                text: "This app finds your World of Warcraft installs and keeps their addons up to date. The installs are listed on the left. This tour takes about a minute."
+                text: "This app keeps the addons of your World of Warcraft installs up to date, and lets you share them. This tour points at each part in turn and takes about two minutes.",
+                prepare: () => tour.home(0)
+            },
+            {
+                title: "Your installs",
+                text: "Every World of Warcraft version found on this computer is listed here, each with its own addons. Click one to switch to it. Add WoW folder is for an install the app did not find.",
+                target: () => sidebar.installsItem,
+                prepare: () => tour.home(0)
             },
             {
                 title: "Your addons",
-                text: "The Installed tab lists every addon in the selected install. When a new version is out the addon gets an Update button, and Update all does them in one go. The menu on each row has the changelog, pinning and going back a version."
+                text: "One row per addon, with its version, where it comes from and its state. A row gets an Update button when something new is out. The three dots open a menu: what's new, go back a version, turn off, add a note, read about it and remove.",
+                target: () => addonsPage.tourList,
+                prepare: () => tour.home(0)
+            },
+            {
+                title: "Update, undo and play",
+                text: "Update all installs every waiting update in one go, and Undo last update takes that round back. The round arrow checks again. Play starts the game.",
+                target: () => addonsPage.tourHead,
+                prepare: () => tour.home(0)
+            },
+            {
+                title: "Profiles and filters",
+                text: "Profiles remember which addons are turned on, so you can switch between sets such as raid and levelling, or turn off everything out of date after a patch. Needs attention shows only addons with updates or problems.",
+                target: () => addonsPage.tourTools,
+                prepare: () => tour.home(0)
             },
             {
                 title: "Find more addons",
-                text: "In Browse, search by name or paste a link from GitHub, WoWInterface, CurseForge or Wago. Any GitHub addon link works, and the addon is kept up to date from then on. You can also drop a downloaded zip file onto the window."
+                text: "Search by name, or paste a link from GitHub, WoWInterface, CurseForge or Wago. The page icon on a result shows its description and pictures before you install. From a zip file installs a download, and dropping a zip on the window does the same.",
+                target: () => addonsPage.tourSearch,
+                prepare: () => tour.home(1)
             },
             {
                 title: "Shared setups",
-                text: "Browse also lists whole addon setups that other players have published. Open one to see what is in it, then install the lot. Share mine turns your own addons into a link you can send to friends, who paste it into Browse."
+                text: "Whole addon setups published by other players. Open one to see what is in it, install it, and follow it to hear when its author changes it. Share mine turns your own addons into a link for your friends.",
+                target: () => addonsPage.tourSetups,
+                prepare: () => tour.home(1)
             },
             {
-                title: "Settings and backups",
-                text: "Settings has backups of your game settings, automatic updates, starting at login and the tray icon. You can replay this tour from there."
+                title: "Interface packs and lists",
+                text: "Save my interface as a pack bundles your addons and their settings for one character into a zip that others can import onto their own character. Dropping a pack on the window imports it. You can also copy your interface to another of your characters here.",
+                target: () => settingsPage.tourList,
+                prepare: () => tour.settings(),
+                reveal: () => settingsPage.reveal(settingsPage.tourList)
+            },
+            {
+                title: "Automatic and backups",
+                text: "Starting at login, the tray icon, background updates and WeakAuras updates are switched on here. Further down are the backups of your game settings, disk space, and a button to see this tour again.",
+                target: () => settingsPage.tourAuto,
+                prepare: () => tour.settings(),
+                reveal: () => settingsPage.reveal(settingsPage.tourAuto)
             }
         ]
-        function start() {
-            step = 0
-            place()
-            open()
-        }
-        function place() {
-            window.settingsOpen = step === 4
-            if (step < 4) addonsPage.showTab(step >= 2 ? 1 : 0)
-        }
-        title: steps[step].title
-        message: steps[step].text
-        cancelText: "Skip"
-        showCancel: step < steps.length - 1
-        confirmText: step < steps.length - 1 ? "Next" : "Done"
-        closePolicy: Popup.CloseOnEscape
-        onConfirmed: {
-            if (step < steps.length - 1) {
-                step += 1
-                place()
-            } else {
-                close()
-            }
-        }
-        onClosed: {
+        onFinished: {
             backend.setWelcomed()
-            window.settingsOpen = false
-            addonsPage.showTab(0)
-        }
-        RowLayout {
-            spacing: 6
-            Repeater {
-                model: tour.steps.length
-                Rectangle {
-                    required property int index
-                    implicitWidth: index === tour.step ? 18 : 6
-                    implicitHeight: 6
-                    radius: 3
-                    color: index === tour.step ? Theme.accent : Theme.tint(Theme.sub, 0.35)
-                }
-            }
+            tour.home(0)
         }
     }
 

@@ -7,6 +7,11 @@ Item {
     id: root
     property int tab: 0
     signal addFolderRequested()
+    property alias tourHead: headRow
+    property alias tourTools: toolRow
+    property alias tourList: list
+    property alias tourSearch: searchRow
+    property alias tourSetups: setups
     signal zipRequested()
     onTabChanged: if (tab === 1) backend.loadShared()
 
@@ -125,6 +130,7 @@ Item {
         visible: backend.hasClient
 
         RowLayout {
+            id: headRow
             Layout.fillWidth: true
             spacing: 10
             ColumnLayout {
@@ -241,6 +247,7 @@ Item {
         }
 
         RowLayout {
+            id: toolRow
             Layout.fillWidth: true
             Layout.topMargin: 16
             spacing: 18
@@ -321,6 +328,7 @@ Item {
                     anchors.fill: parent
                     spacing: 0
                     RowLayout {
+                        id: searchRow
                         Layout.fillWidth: true
                         Layout.topMargin: 14
                         spacing: 8

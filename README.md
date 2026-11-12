@@ -40,7 +40,9 @@ curl -fsSL https://raw.githubusercontent.com/BilboTheGreedy/wowam/main/install.s
 4. Open Browse to add more. Search by name or paste an addon link.
 5. Have a look in Settings for backups, start at login and the tray icon.
 
-There is a short tour the first time you start the app.
+The first time you start the app a short tour points at each part and explains it. You can see it again from Settings.
+
+![tour](docs/tour.png)
 
 ## Shared addon setups
 

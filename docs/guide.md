@@ -1,5 +1,9 @@
 # Guide
 
+## The tour
+
+The first start shows a tour of nine steps. Each step lights up the part of the window it is about and explains it. Next and Back move through it (or the arrow keys), Skip or Escape closes it. Settings, Appearance, "Show the tour again" starts it over.
+
 ## Installs
 
 The app looks for World of Warcraft in the usual places: the default folders on Windows and macOS, and Lutris, Steam, Bottles and plain Wine prefixes on Linux. Every game version in a folder (Retail, Classic, Classic Era, Forever, PTR and so on) is listed on its own in the sidebar.

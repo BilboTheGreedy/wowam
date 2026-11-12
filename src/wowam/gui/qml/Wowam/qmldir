@@ -10,6 +10,7 @@ Spinner 1.0 Spinner.qml
 PopMenu 1.0 PopMenu.qml
 PopItem 1.0 PopItem.qml
 Modal 1.0 Modal.qml
+Tour 1.0 Tour.qml
 Sidebar 1.0 Sidebar.qml
 AddonRow 1.0 AddonRow.qml
 BrowseRow 1.0 BrowseRow.qml

@@ -5,6 +5,8 @@ import Wowam
 
 Rectangle {
     id: root
+    property alias installsItem: list
+    property alias settingsItem: settingsNav
     property bool settingsOpen: false
     signal clientPicked(int index)
     signal settingsClicked()
@@ -174,6 +176,6 @@ Rectangle {
         }
 
         NavItem { label: "Add WoW folder"; iconName: "plus"; onClicked: root.addClicked() }
-        NavItem { label: "Settings"; iconName: "settings"; active: root.settingsOpen; onClicked: root.settingsClicked() }
+        NavItem { id: settingsNav; label: "Settings"; iconName: "settings"; active: root.settingsOpen; onClicked: root.settingsClicked() }
     }
 }

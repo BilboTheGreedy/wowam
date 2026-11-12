@@ -7,6 +7,12 @@ Item {
     id: root
     signal addFolderRequested()
     signal tourRequested()
+    property alias tourAuto: autoCard
+    property alias tourList: listCard
+
+    function reveal(item) {
+        flick.contentY = Math.max(0, Math.min(item.y + col.y - 24, flick.contentHeight - flick.height))
+    }
 
     component Line: RowLayout {
         property string label: ""
@@ -83,6 +89,7 @@ Item {
             }
 
             Card {
+                id: autoCard
                 title: "Automatic"
                 Line {
                     label: "Start when I log in"
@@ -223,6 +230,7 @@ Item {
             }
 
             Card {
+                id: listCard
                 title: "Addon list" + (backend.hasClient ? "  ·  " + backend.clientLabel : "")
                 hint: "The list works on every WoW version. Copy it to move your addons to another install or computer, or paste a list or a link to one that someone shared."
                 RowLayout {
