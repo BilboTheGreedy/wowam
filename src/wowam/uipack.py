@@ -71,6 +71,8 @@ def inspect(path):
                     meta = json.loads(zf.read(info))
                 except ValueError:
                     meta = {}
+                if not isinstance(meta, dict):
+                    meta = {}
                 continue
             rest = _wtf(parts)
             if rest and len(rest) >= 3 and rest[-2] == "SavedVariables":

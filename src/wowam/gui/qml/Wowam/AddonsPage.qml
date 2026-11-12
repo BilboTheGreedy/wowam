@@ -308,8 +308,11 @@ Item {
                 Empty {
                     visible: list.count === 0 && !backend.loading && backend.addonCount > 0
                     iconName: "search"
-                    heading: "Nothing matches that filter"
-                    Btn { text: "Clear filter"; onClicked: filterField.text = "" }
+                    heading: backend.attention && filterField.text === "" ? "Nothing needs attention" : "Nothing matches that filter"
+                    Btn {
+                        text: backend.attention && filterField.text === "" ? "Show all addons" : "Clear filter"
+                        onClicked: { filterField.text = ""; backend.setAttention(false) }
+                    }
                 }
             }
 
@@ -475,6 +478,7 @@ Item {
                             iconName: "globe"
                             heading: "Add an addon to " + backend.clientLabel
                             detail: "Search covers GitHub, WoWInterface and Tukui" + (backend.wagoKey ? ", Wago Addons" : "") + ((backend.curseKey || backend.curseBuiltin) ? ", CurseForge" : "") + "." + " You can also paste an addon link, for example github.com/BigWigsMods/BigWigs."
+                            Btn { text: "Share my addons"; iconName: "link"; onClicked: backend.openShare() }
                         }
                         Empty {
                             visible: results.count === 0 && !backend.searching && backend.searched && backend.hiddenResults === 0

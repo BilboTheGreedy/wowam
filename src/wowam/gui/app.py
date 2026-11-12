@@ -40,7 +40,7 @@ BROWSE_ROLES = [
 ]
 
 
-IMG_MD = re.compile(r'(!\[[^\]]*\]\()\s*<?([^)\s>]+)>?((?:\s+"[^"]*")?\s*\))')
+IMG_MD = re.compile(r'(!\[[^\]]*\]\()\s*<?((?:[^()\s<>]|\([^()\s]*\))+)>?((?:\s+"[^"]*")?\s*\))')
 IMG_HTML = re.compile(r"""(<img\b[^>]*?\bsrc=["'])([^"']+)(["'])""", re.I)
 
 
@@ -176,6 +176,7 @@ class Backend(QObject):
         self._uri = uri
         self.cfg = Config()
         self._pool = ThreadPoolExecutor(max_workers=6)
+        self._closed = False
         self._post.connect(self._run, Qt.QueuedConnection)
         self._clients = []
         self._managers = {}
@@ -190,6 +191,7 @@ class Backend(QObject):
         self._packs = {}
         self._problems = {}
         self._batch = {}
+        self._about_id = 0
         self._usage = []
         self._attention = False
         self.window = None
@@ -225,13 +227,15 @@ class Backend(QObject):
                 result, err = None, str(e)
             except Exception as e:
                 result, err = None, f"{type(e).__name__}: {e}"
-            if done:
+            if done and not self._closed:
                 self._post.emit(lambda: done(result, err))
 
         self._pool.submit(job)
 
     def shutdown(self):
+        self._closed = True
         self._gen += 1
+        self._tick.stop()
         self._pool.shutdown(wait=False, cancel_futures=True)
 
     def _client(self):
@@ -334,6 +338,7 @@ class Backend(QObject):
         self.backupsChanged.emit()
         self._orphans = None
         self.orphansChanged.emit()
+        self._client_views()
         self.refresh()
         for i, c in enumerate(self._clients):
             if i != self._index:
@@ -499,23 +504,25 @@ class Backend(QObject):
         mgr = self._mgr(client)
         self._sync_auras(client, gen)
 
-        def done(addons, err):
+        def done(found, err):
             if gen != self._gen:
                 return
             self._loading = False
             if err:
                 self.toast.emit(err, True)
-            self._entries = {a.key: Entry(a, True) for a in addons or []}
+            self._problems = found[0] if found else {}
+            addons = found[1] if found else []
+            self._entries = {a.key: Entry(a, True) for a in addons}
             self._publish()
-            for a in addons or []:
+            for a in addons:
                 self._check(a, gen, client)
 
         def work():
             try:
-                self._problems = health.problems(client)
+                trouble = health.problems(client)
             except OSError:
-                self._problems = {}
-            return mgr.list()
+                trouble = {}
+            return trouble, mgr.list()
 
         self._bg(work, done)
 
@@ -613,6 +620,8 @@ class Backend(QObject):
 
     @Slot()
     def recheck(self):
+        if self.working:
+            return
         self._auto_done.clear()
         self._load_clients()
 
@@ -659,7 +668,8 @@ class Backend(QObject):
             if p < 1 and (p - last[0] < 0.02 or now - last[1] < 0.05):
                 return
             last[0], last[1] = p, now
-            self._post.emit(lambda: self._set_progress(gen, key, p, model))
+            if not self._closed:
+                self._post.emit(lambda: self._set_progress(gen, key, p, model))
 
         return cb
 
@@ -697,7 +707,13 @@ class Backend(QObject):
 
         def done(rel, err):
             if gen != self._gen:
-                self._recount(client)
+                if err:
+                    self.toast.emit(f"{addon.name}: {err}", True)
+                if client is self._client():
+                    self._reload()
+                else:
+                    self._recount(client)
+                self.historyChanged.emit()
                 return
             e.busy = ""
             e.progress = 0.0
@@ -752,8 +768,9 @@ class Backend(QObject):
         if not sources.parse_ref(ref):
             return
         have = ref in set(self._mgr(client).refs()) if client else False
+        self._about_id += 1
         base = {"ref": ref, "name": name or ref, "page": sources.page_of(ref), "installed": have, "loading": True,
-                "text": "", "format": "plain", "base": ""}
+                "text": "", "format": "plain", "base": "", "id": self._about_id}
         self.aboutReady.emit(base)
 
         def done(result, err):
@@ -774,8 +791,13 @@ class Backend(QObject):
 
     def _undoable(self):
         client = self._client()
-        keys = self._batch.get(client.id, []) if client else []
-        return [k for k in keys if k in self._entries and self._entries[k].addon.previous and not self._entries[k].busy]
+        since, keys = self._batch.get(client.id, (0, [])) if client else (0, [])
+        out = []
+        for k in keys:
+            e = self._entries.get(k)
+            if e and e.addon.previous and not e.busy and e.addon.time >= since:
+                out.append(k)
+        return out
 
     @Property(int, notify=changed)
     def undoCount(self):
@@ -826,6 +848,8 @@ class Backend(QObject):
             return [{"label": label, "size": human_size(s)} for label, s in rows if s]
 
         def done(result, err):
+            if client is not self._client():
+                return
             self._usage = result or []
             self.usageChanged.emit()
 
@@ -849,7 +873,7 @@ class Backend(QObject):
         if not client or not keys:
             return
         gen = self._gen
-        self._batch[client.id] = list(keys)
+        self._batch[client.id] = (int(time.time()), list(keys))
         for k in keys:
             self._entries[k].busy = "Waiting"
         self._publish()
@@ -915,8 +939,11 @@ class Backend(QObject):
         if not e or not client or not e.addon.managed or e.busy:
             return
         mgr = self._mgr(client)
+        e.busy = "Turning on" if on else "Turning off"
+        self._publish()
 
         def done(result, err):
+            e.busy = ""
             if err:
                 self.toast.emit(err, True)
             else:
@@ -1029,6 +1056,12 @@ class Backend(QObject):
         self._filter = text
         self._publish()
 
+    def _client_views(self):
+        self.profilesChanged.emit()
+        self.followsChanged.emit()
+        self.sharedChanged.emit()
+        self.usageChanged.emit()
+
     @Slot(int)
     def selectClient(self, i):
         if 0 <= i < len(self._clients) and i != self._index:
@@ -1037,7 +1070,11 @@ class Backend(QObject):
             self._found = []
             self._browse.sync([])
             self._searched = False
+            self._searching = False
+            self._search_gen += 1
+            self._usage = []
             self.browseChanged.emit()
+            self._client_views()
             self._orphans = None
             self.orphansChanged.emit()
             self.backupsChanged.emit()
@@ -1131,20 +1168,25 @@ class Backend(QObject):
     def hiddenResults(self):
         return len(self._found) - self._browse.count
 
-    def _install(self, ref, quiet=False):
-        client = self._client()
+    def _install(self, ref, quiet=False, client=None):
+        client = client or self._client()
         if not client:
             return
         mgr = self._mgr(client)
-        self._browse.patch(ref, busy=True, progress=0.0)
-        progress = self._progress_cb(self._gen, ref, self._browse)
+        current = client is self._client()
+        if current:
+            self._browse.patch(ref, busy=True, progress=0.0)
+        progress = self._progress_cb(self._gen, ref, self._browse if current else None)
 
         def done(rec, err):
-            self._browse.patch(ref, busy=False, progress=0.0)
+            shown = client is self._client()
+            if shown:
+                self._browse.patch(ref, busy=False, progress=0.0)
             if err:
                 self.toast.emit(f"{ref}: {err}" if quiet else err, True)
             else:
-                self._browse.patch(ref, installed=True)
+                if shown:
+                    self._browse.patch(ref, installed=True)
                 self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
                 self.historyChanged.emit()
                 self.sharedChanged.emit()
@@ -1340,14 +1382,33 @@ class Backend(QObject):
         change = self._settle(client, url) if client else None
         if not change:
             return
-        have = set(self._mgr(client).refs())
+        mgr = self._mgr(client)
+        have = set(mgr.refs())
         for ref in change["added"]:
             if ref not in have:
-                self._install(ref, quiet=True)
-        if remove:
-            for ref in change["removed"]:
-                if ref in have:
-                    self.removeAddon(ref)
+                self._install(ref, quiet=True, client=client)
+        gone = [ref for ref in change["removed"] if ref in have] if remove else []
+        if not gone:
+            return
+
+        def work():
+            count = 0
+            for ref in gone:
+                addon = mgr.get(ref)
+                if addon:
+                    mgr.uninstall(addon)
+                    count += 1
+            return count
+
+        def done(count, err):
+            if err:
+                self.toast.emit(err, True)
+            elif count:
+                self.toast.emit(f"Removed {count} dropped addon{'s' if count != 1 else ''}", False)
+            if client is self._client():
+                self._reload()
+
+        self._bg(work, done)
 
     @Slot(str)
     def dismissSetup(self, url):
@@ -1357,7 +1418,9 @@ class Backend(QObject):
 
     @Slot(str)
     def installFile(self, path):
-        client = self._client()
+        self._install_file(self._client(), path)
+
+    def _install_file(self, client, path):
         if path.startswith("file:"):
             path = QUrl(path).toLocalFile()
         if not client or not path:
@@ -1378,7 +1441,8 @@ class Backend(QObject):
                 return
             self.toast.emit(f"Installed {rec['name']} on {client.label}", False)
             self.historyChanged.emit()
-            self._reload()
+            if client is self._client():
+                self._reload()
 
         self._bg(work, done)
 
@@ -1391,6 +1455,9 @@ class Backend(QObject):
         ]
 
     def _offer_pack(self, client, path, info):
+        if client is not self._client():
+            self.toast.emit(f"Switch back to {client.label} and open the pack again", True)
+            return
         self._packs[path] = info
         self.packReady.emit({
             "path": path,
@@ -1441,8 +1508,9 @@ class Backend(QObject):
             self.toast.emit(f"Imported {info['name']} for {dst[2]}: " + ", ".join(parts), False)
             self.backupsChanged.emit()
             for ref in todo:
-                self._install(ref, quiet=True)
-            self._reload()
+                self._install(ref, quiet=True, client=client)
+            if client is self._client():
+                self._reload()
 
         left_out = {s.lower() for s in skip.split("|") if s}
         only = {s.lower() for s in uipack.settings(path)} - left_out if left_out else None
@@ -1496,7 +1564,7 @@ class Backend(QObject):
         if not client or not name:
             return
         found = self._profile_map(client)
-        found[name] = [a.ref for a in self._mgr(client).list() if a.managed and not a.off]
+        found[name] = self._on_refs()
         self._save_profiles(client, found)
         self.toast.emit(f"Saved the profile {name}", False)
 
@@ -1509,13 +1577,17 @@ class Backend(QObject):
         found.pop(name, None)
         self._save_profiles(client, found)
 
+    def _on_refs(self):
+        return [e.addon.ref for e in self._entries.values() if e.addon.managed and not e.addon.off]
+
     def _switch(self, client, wanted, message):
         mgr = self._mgr(client)
+        busy = {e.addon.ref for e in self._entries.values() if e.busy}
 
         def work():
             changed = 0
             for a in mgr.list():
-                if a.managed and a.off == wanted(a):
+                if a.managed and a.ref not in busy and a.off == wanted(a):
                     mgr.set_enabled(a.ref, wanted(a))
                     changed += 1
             return changed
@@ -1529,9 +1601,10 @@ class Backend(QObject):
     @Slot(str)
     def applyProfile(self, name):
         client = self._client()
-        refs = set(self._profile_map(client).get(name, [])) if client else None
-        if refs is None or not client:
+        found = self._profile_map(client)
+        if not client or name not in found:
             return
+        refs = set(found[name])
         self._switch(client, lambda a: a.ref in refs, lambda n: f"Switched to {name}" + (f", {n} addon{'s' if n != 1 else ''} changed" if n else ""))
 
     @Slot()
@@ -1540,7 +1613,7 @@ class Backend(QObject):
         if not client:
             return
         found = self._profile_map(client)
-        found["Before safe mode"] = [a.ref for a in self._mgr(client).list() if a.managed and not a.off]
+        found["Before safe mode"] = sorted(set(found.get("Before safe mode", [])) | set(self._on_refs()))
         self._save_profiles(client, found)
         self._switch(
             client,
@@ -1566,11 +1639,11 @@ class Backend(QObject):
         if not found:
             self.toast.emit("No characters found. Log in to the game once first.", True)
             return
-        items = [
-            {"ref": a.ref, "name": a.name}
-            for a in self._mgr(client).list()
-            if a.managed and not a.off
-        ]
+        items = sorted(
+            ({"ref": e.addon.ref, "name": e.addon.name} for e in self._entries.values()
+             if e.addon.managed and not e.addon.off),
+            key=lambda i: i["name"].lower(),
+        )
         self.exportRequested.emit({"chars": self._char_rows(found), "game": client.label, "items": items})
 
     @Slot(str, str, str)
@@ -1604,11 +1677,13 @@ class Backend(QObject):
         dest = http.cache_dir() / "dl" / f"pack-{time.monotonic_ns()}.zip"
         self.toast.emit("Downloading", False)
 
+        client = self._client()
+
         def done(result, err):
             if err:
                 self.toast.emit(err, True)
             else:
-                self.installFile(str(dest))
+                self._install_file(client, str(dest))
 
         def work():
             try:
@@ -1636,8 +1711,8 @@ class Backend(QObject):
 
         def done(ref, err):
             if ref:
-                self._install(ref)
-            else:
+                self._install(ref, client=client)
+            elif client is self._client():
                 self.showBrowse.emit(name)
 
         self._bg(work, done)
@@ -1671,8 +1746,9 @@ class Backend(QObject):
                 self.toast.emit(err, True)
                 self.published.emit("")
                 return
-            gists[client.id] = result["id"]
-            self.cfg.set("gists", gists)
+            fresh = dict(self.cfg.get("gists"))
+            fresh[client.id] = result["id"]
+            self.cfg.set("gists", fresh)
             QGuiApplication.clipboard().setText(result["url"])
             self.published.emit(result["url"])
 
@@ -2163,6 +2239,12 @@ def run(uri="", hidden=False):
         Path(smoke).write_text("\n".join(problems) if problems else "ok")
         code = 2 if problems else code
     backend.shutdown()
+    if tray:
+        tray.timer.stop()
+        tray.icon.hide()
     del tray
+    backend.window = None
+    del window
     del engine
+    app.processEvents()
     return code

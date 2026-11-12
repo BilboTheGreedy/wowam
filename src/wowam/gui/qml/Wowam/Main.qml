@@ -217,7 +217,7 @@ ApplicationWindow {
         id: picker
         property string picked: ""
         Layout.fillWidth: true
-        Layout.preferredHeight: Math.min(contentHeight, 150)
+        Layout.preferredHeight: Math.min(contentHeight, Math.max(60, (window.height - 440) / 2))
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
@@ -284,6 +284,7 @@ ApplicationWindow {
             message = bits.join("  ·  ")
             fromPick.picked = data.sources.length > 0 ? data.sources[0].key : ""
             toPick.picked = data.targets.length === 1 ? data.targets[0].key : ""
+            mine = toPick.picked !== "" ? backend.packOverwrites(toPick.picked) : []
             open()
         }
         width: Math.min(520, parent ? parent.width - 48 : 520)
@@ -305,7 +306,7 @@ ApplicationWindow {
         ListView {
             visible: packDialog.pack.settings.length > 0
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 150)
+            Layout.preferredHeight: Math.min(contentHeight, Math.max(60, (window.height - 440) / 2))
             clip: true
             model: packDialog.pack.settings
             boundsBehavior: Flickable.StopAtBounds
@@ -365,11 +366,12 @@ ApplicationWindow {
 
     Modal {
         id: aboutDialog
-        property var info: ({ ref: "", name: "", page: "", installed: false, loading: false, text: "", format: "plain", base: "" })
+        property var info: ({ ref: "", name: "", page: "", installed: false, loading: false, text: "", format: "plain", base: "", id: 0 })
         function show(d) {
+            if (!d.loading && (!opened || d.id !== info.id)) return
             info = d
             title = d.name
-            if (!opened) open()
+            if (d.loading) open()
         }
         width: Math.min(760, parent ? parent.width - 48 : 760)
         showCancel: !info.installed
@@ -453,6 +455,7 @@ ApplicationWindow {
             off = ({})
             title = "Save your " + d.game + " interface as a pack"
             fromChar.picked = d.chars.length === 1 ? d.chars[0].key : ""
+            packName.text = ""
             open()
             packName.forceActiveFocus()
         }
@@ -476,7 +479,7 @@ ApplicationWindow {
         Caption { text: "Addons to include" }
         ListView {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 150)
+            Layout.preferredHeight: Math.min(contentHeight, Math.max(60, (window.height - 440) / 2))
             clip: true
             model: exportDialog.info.items
             boundsBehavior: Flickable.StopAtBounds
@@ -534,6 +537,8 @@ ApplicationWindow {
             off = ({})
             link = ""
             busy = false
+            nameField.text = ""
+            aboutField.text = ""
             open()
             nameField.forceActiveFocus()
         }
@@ -584,7 +589,7 @@ ApplicationWindow {
         ListView {
             visible: !shareDialog.link
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 240)
+            Layout.preferredHeight: Math.min(contentHeight, Math.max(90, window.height - 460))
             clip: true
             model: shareDialog.items
             boundsBehavior: Flickable.StopAtBounds
@@ -605,7 +610,7 @@ ApplicationWindow {
                     implicitHeight: 18
                     radius: 5
                     color: pick.on ? Theme.accent : "transparent"
-                    border.color: pick.on ? Theme.accent : Theme.line
+                    border.color: pick.on ? Theme.accent : Theme.sub
                     Icon { anchors.centerIn: parent; visible: pick.on; shape: "check"; size: 12; color: Theme.onAccent }
                 }
                 Text {
@@ -650,7 +655,7 @@ ApplicationWindow {
         }
         ListView {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(contentHeight, 300)
+            Layout.preferredHeight: Math.min(contentHeight, Math.max(90, window.height - 400))
             clip: true
             spacing: 4
             model: listDialog.item.refs

@@ -571,9 +571,38 @@ class OffTests(unittest.TestCase):
             self.assertTrue(item.off)
             self.assertFalse(item.missing)
             self.assertFalse(manager.needs_update(item, Release("2", "u")))
+            sv = client.wtf_dir / "Account" / "A" / "SavedVariables"
+            sv.mkdir(parents=True)
+            (sv / "Foo.lua").write_text("x")
+            (sv / "Gone.lua").write_text("x")
+            self.assertEqual([o["addon"] for o in mgr.orphans()], ["Gone"])
             mgr.set_enabled("gh:a/foo", True)
             self.assertTrue((addon / "Foo.toc").is_file())
             self.assertFalse(mgr.list()[0].off)
+
+    def test_on_keeps_modified(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            client = clients.Client(home / "wow" / "_retail_", "_retail_", "wow", "12.0.0.1", "mainline", "Retail")
+            addon = client.addons_dir / "Foo"
+            addon.mkdir(parents=True)
+            (addon / "Foo.toc").write_text("## Title: Foo\n")
+            mgr = manager.Manager(client, Cfg())
+            hashes, stamps = mgr._fingerprints(["Foo"])
+            mgr.state.addons["gh:a/foo"] = {"name": "Foo", "version": "1", "dirs": ["Foo"], "hashes": hashes, "stamps": stamps}
+            mgr.state.save()
+            (addon / "mine.lua").write_text("edit")
+            self.assertTrue(mgr.list()[0].modified)
+            mgr.set_enabled("gh:a/foo", False)
+            mgr.set_enabled("gh:a/foo", True)
+            self.assertTrue(mgr.list()[0].modified)
+
+    def test_suffix_folder_keeps_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            make_zip(home / "a.zip", {"Foo_Classic/Foo_Classic.toc": "## Title: Foo\n"})
+            names = installer.install_zip(home / "a.zip", home / "AddOns")
+            self.assertEqual(names, ["Foo_Classic"])
 
 
 class AddonRestoreTests(unittest.TestCase):
@@ -712,6 +741,8 @@ class PackTests(unittest.TestCase):
         self.assertEqual((dst / "Bar.lua").read_text(), "BarChar = {}")
         self.assertIn("Jaina - Draenor", (self.client.wtf_dir / "Account/YOU/SavedVariables/Bar.lua").read_text())
         self.assertIsNone(uipack.inspect(self.home / "nothing.zip"))
+        make_zip(self.home / "odd.zip", {"wowam-ui.json": "[]", "WTF/Account/S/SavedVariables/Bar.lua": "a"})
+        self.assertEqual(uipack.inspect(self.home / "odd.zip")["files"], 1)
         make_zip(self.home / "addon.zip", {"Foo/Foo.toc": "## Title: Foo\n"})
         self.assertIsNone(uipack.inspect(self.home / "addon.zip"))
 

@@ -76,10 +76,14 @@ def _toc_stems(folder):
     return [strip_suffix(p.stem) for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".toc"]
 
 
+def _raw_stems(folder):
+    return [p.stem for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".toc"]
+
+
 def _locate(folder, depth=0):
     stems = _toc_stems(folder)
     if stems:
-        if folder.name in stems:
+        if folder.name in stems or folder.name in _raw_stems(folder):
             return {folder.name: folder}
         return {Counter(stems).most_common(1)[0][0]: folder}
     dirs = [p for p in folder.iterdir() if p.is_dir()]
@@ -88,7 +92,7 @@ def _locate(folder, depth=0):
         stems = _toc_stems(d)
         if not stems:
             continue
-        if d.name in stems or len(dirs) > 1:
+        if d.name in stems or d.name in _raw_stems(d) or len(dirs) > 1:
             found[d.name] = d
         else:
             found[Counter(stems).most_common(1)[0][0]] = d

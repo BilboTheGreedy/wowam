@@ -212,10 +212,15 @@ class Manager:
                 for d in dirs:
                     for rel, full in installer._files(self.client.addons_dir / d):
                         zf.write(full, f"{d}/{rel}")
-            tmp.replace(target)
-            return True
+            return tmp
         except OSError:
-            return False
+            return None
+
+    def _drop_off(self, rec):
+        if rec.pop("off", None):
+            for d in rec.get("dirs", []):
+                if "/" not in d and "\\" not in d and d not in ("", ".", ".."):
+                    installer.remove(self.off_dir / d)
 
     def rollback(self, ref):
         with self.lock:
@@ -228,6 +233,7 @@ class Manager:
                 names = installer.install_zip(source, self.client.addons_dir)
             except installer.InstallError as e:
                 raise SourceError(str(e)) from e
+            self._drop_off(rec)
             for d in rec.get("dirs", []):
                 if d not in names and not rec.get("adopted"):
                     installer.remove(self.client.addons_dir / d)
@@ -401,11 +407,18 @@ class Manager:
                 self.state.load()
                 old = self.state.addons.get(ref, {})
                 changed = bool(old) and not same_version(old.get("version", ""), release.version)
-                kept = changed and self._keep_previous(ref, old)
+                kept = self._keep_previous(ref, old) if changed else None
                 try:
                     names = installer.install_zip(zip_path, self.client.addons_dir)
                 except installer.InstallError as e:
+                    if kept:
+                        kept.unlink(missing_ok=True)
                     raise SourceError(str(e)) from e
+                if kept:
+                    try:
+                        kept.replace(self.rollback_file(ref))
+                    except OSError:
+                        kept = None
                 for other, rec in list(self.state.addons.items()):
                     if other == ref:
                         continue
@@ -472,7 +485,6 @@ class Manager:
                     shutil.move(str(src / d), str(dst / d))
             if on:
                 rec.pop("off", None)
-                rec["hashes"], rec["stamps"] = self._fingerprints(rec.get("dirs", []))
             else:
                 rec["off"] = True
             self.state.save()
@@ -504,8 +516,13 @@ class Manager:
             fields = toc.read(self.client.addons_dir / main, self.client.flavor)
             title = toc.tidy(fields.get("title", "")) or main
             version = fields.get("version", "")
-            for ref, rec in self.state.addons.items():
-                if set(rec.get("dirs", [])) & set(names):
+            owner = None
+            for ref, rec in list(self.state.addons.items()):
+                if not set(rec.get("dirs", [])) & set(names):
+                    continue
+                if owner is None:
+                    owner = rec
+                    self._drop_off(rec)
                     dirs = sorted(set(rec.get("dirs", [])) | set(names))
                     old = rec.get("version", "")
                     rec["dirs"] = dirs
@@ -514,8 +531,13 @@ class Manager:
                     rec["time"] = int(time.time())
                     title = rec.get("name") or title
                     history.add(self.client.label, title, old, rec["version"])
-                    break
-            else:
+                    continue
+                left = [d for d in rec.get("dirs", []) if d not in names]
+                if left:
+                    rec["dirs"] = left
+                else:
+                    del self.state.addons[ref]
+            if owner is None:
                 history.add(self.client.label, title, "", version)
             self.state.save()
             return {"name": title, "version": version, "dirs": names}
@@ -553,11 +575,20 @@ class Manager:
     def orphans(self):
         wtf = self.client.wtf_dir
         dirs = self.all_dirs()
+        try:
+            dirs |= {p.name for p in self.off_dir.iterdir() if p.is_dir()}
+        except OSError:
+            pass
+        with self.lock:
+            self.state.load()
+            for rec in self.state.addons.values():
+                dirs.update(rec.get("dirs", []))
+        known = {d.lower() for d in dirs}
         out = []
         for pattern in SV_GLOBS:
             for path in wtf.glob(pattern):
                 stem = path.name.split(".lua")[0]
-                if stem in dirs or stem.startswith("Blizzard_"):
+                if stem.lower() in known or stem.startswith("Blizzard_"):
                     continue
                 try:
                     size = path.stat().st_size
