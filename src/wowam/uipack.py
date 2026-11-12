@@ -9,7 +9,7 @@ from . import backup, installer
 from .sources import SourceError
 
 MANIFEST = "wowam-ui.json"
-ACCOUNT, REALM, CHAR = "ACCOUNT", "Realm", "Character"
+ACCOUNT, REALM, CHAR = "ACCOUNT", "Yourrealm", "Yourcharacter"
 SKIP_DIRS = {"SavedVariables"}
 
 
@@ -109,9 +109,9 @@ def rename(text, src, dst):
             (f"{s_char}-{flat_s}", f"{d_char}-{flat_d}"),
             (f"{s_char} - {flat_s}", f"{d_char} - {flat_d}"),
         ]
-    if len(s_char) >= 3:
+    if len(s_char) >= 4:
         pairs.append((f'"{s_char}"', f'"{d_char}"'))
-    if len(s_realm) >= 3:
+    if len(s_realm) >= 4:
         pairs.append((f'"{s_realm}"', f'"{d_realm}"'))
     for old, new in pairs:
         if old != new:
@@ -177,8 +177,20 @@ def apply(client, path, src, dst, keep=7):
         return {"settings": settings, "addons": sorted(addons)}
 
 
-def scrub(text, src):
-    return rename(text, src, (ACCOUNT, REALM, CHAR))
+def scrub(text, src, others=()):
+    text = rename(text, src, (ACCOUNT, REALM, CHAR))
+    realms = {src[1]: REALM}
+    accounts = {src[0]}
+    for n, other in enumerate(others, 1):
+        if other == src:
+            continue
+        accounts.add(other[0])
+        realm = realms.setdefault(other[1], f"Realm{len(realms) + 1}")
+        text = rename(text, other, ("", realm, f"Alt{n}"))
+    for name in sorted(accounts, key=len, reverse=True):
+        if len(name) >= 4:
+            text = text.replace(name, ACCOUNT)
+    return text
 
 
 def export(client, src, folders, refs, dest, name, by=""):
@@ -199,6 +211,7 @@ def export(client, src, folders, refs, dest, name, by=""):
     dest.parent.mkdir(parents=True, exist_ok=True)
     meta = {"name": name, "by": by, "game": client.label, "addons": list(refs), "version": 1}
     tmp = dest.with_suffix(".part")
+    others = chars(client)
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(MANIFEST, json.dumps(meta, indent=2))
         for path, arc in picks:
@@ -206,6 +219,6 @@ def export(client, src, folders, refs, dest, name, by=""):
                 text = path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 continue
-            zf.writestr(arc, scrub(text, src))
+            zf.writestr(arc, scrub(text, src, others))
     tmp.replace(dest)
     return {"path": dest, "files": len(picks)}

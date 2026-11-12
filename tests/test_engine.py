@@ -628,9 +628,10 @@ class PackTests(unittest.TestCase):
         self.assertNotIn("Thrall", body)
         self.assertNotIn("Tarren", body)
         self.assertNotIn("ME/", body)
+
         info = uipack.inspect(self.home / "p.zip")
         self.assertEqual((info["name"], info["addons"], info["files"]), ("My UI", ["gh:a/foo"], 2))
-        self.assertEqual(info["chars"], [("ACCOUNT", "Realm", "Character")])
+        self.assertEqual(info["chars"], [("ACCOUNT", "Yourrealm", "Yourcharacter")])
         dst = self.char("YOU", "Draenor", "Jaina")
         res = uipack.apply(self.client, self.home / "p.zip", info["chars"][0], ("YOU", "Draenor", "Jaina"))
         self.assertEqual(res["settings"], 2)
@@ -639,6 +640,14 @@ class PackTests(unittest.TestCase):
         self.assertIn('"Jaina-Draenor"', shared)
         self.assertEqual((dst / "Foo.lua").read_text(), 'FooChar = { name = "Jaina" }')
         self.assertTrue(backup.entries(self.client))
+
+    def test_scrub_alts(self):
+        text = 'DB = { ["Thrall - Tarren Mill"] = 1, ["Garrosh - Draenor"] = 2, ["Garrosh-Draenor"] = 3, n = "Garrosh", a = "MYACCT#1" }'
+        out = uipack.scrub(text, ("MYACCT#1", "Tarren Mill", "Thrall"), [("MYACCT#1", "Tarren Mill", "Thrall"), ("MYACCT#1", "Draenor", "Garrosh")])
+        for word in ("Thrall", "Tarren", "Garrosh", "Draenor", "MYACCT"):
+            self.assertNotIn(word, out)
+        self.assertIn('["Alt2 - Realm2"] = 2', out)
+        self.assertIn('"Alt2-Realm2"', out)
 
     def test_hand_made_pack(self):
         make_zip(self.home / "ui.zip", {

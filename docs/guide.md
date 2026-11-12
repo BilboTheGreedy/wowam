@@ -58,7 +58,7 @@ Settings, Addon list shows what you follow and has "Stop following".
 
 ## Interface packs
 
-A pack is a zip with a `wowam-ui.json` (name and addon list) and a `WTF` folder holding the addon settings of one character, with the names replaced by `ACCOUNT`, `Realm` and `Character`.
+A pack is a zip with a `wowam-ui.json` (name and addon list) and a `WTF` folder holding the addon settings of one character, with the names replaced by placeholders.
 
 Importing:
 
@@ -71,7 +71,7 @@ The character has to exist in the game folder, so log in with it once before imp
 
 Hand-made packs with `Interface/AddOns` and `WTF/Account/...` inside work the same way. The addons in them are copied in as they are.
 
-Making one: Settings, Addon list, "Save my interface as a pack". It takes the addons the app tracks and their settings. Your character and realm names are replaced, but settings files can still contain other names, so have a look before you post it.
+Making one: Settings, Addon list, "Save my interface as a pack". Pick the character and untick addons you want to leave out. Your account name, character, realm and alts are replaced with placeholders. Names of friends and guild members cannot be found automatically, so leave out addons that keep that kind of data (chat, friend list, damage history) and have a look in the zip before you post it.
 
 ## Sources and keys
 

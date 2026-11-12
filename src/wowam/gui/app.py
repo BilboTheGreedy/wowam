@@ -1295,10 +1295,15 @@ class Backend(QObject):
         if not found:
             self.toast.emit("No characters found. Log in to the game once first.", True)
             return
-        self.exportRequested.emit({"chars": self._char_rows(found), "game": client.label})
+        items = [
+            {"ref": a.ref, "name": a.name}
+            for a in self._mgr(client).list()
+            if a.managed and not a.off
+        ]
+        self.exportRequested.emit({"chars": self._char_rows(found), "game": client.label, "items": items})
 
-    @Slot(str, str)
-    def exportPack(self, key, name):
+    @Slot(str, str, str)
+    def exportPack(self, key, name, text):
         client = self._client()
         src = tuple(key.split("|"))
         if not client or len(src) != 3 or src not in uipack.chars(client):
@@ -1310,7 +1315,8 @@ class Backend(QObject):
         dest = Path(folder) / f"{slug}-wowam-ui.zip"
 
         def work():
-            managed = [a for a in mgr.list() if a.managed and not a.off]
+            wanted = set(parse_refs(text))
+            managed = [a for a in mgr.list() if a.managed and not a.off and a.ref in wanted]
             folders = [d for a in managed for d in a.dirs]
             return uipack.export(client, src, folders, [a.ref for a in managed], dest, name)
 

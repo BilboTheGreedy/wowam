@@ -295,9 +295,17 @@ ApplicationWindow {
 
     Modal {
         id: exportDialog
-        property var info: ({ chars: [], game: "" })
+        property var info: ({ chars: [], game: "", items: [] })
+        property var off: ({})
+        readonly property int picked: info.items.filter(i => !off[i.ref]).length
+        function toggle(ref) {
+            var next = Object.assign({}, off)
+            next[ref] = !next[ref]
+            off = next
+        }
         function show(d) {
             info = d
+            off = ({})
             title = "Save your " + d.game + " interface as a pack"
             fromChar.picked = d.chars.length === 1 ? d.chars[0].key : ""
             open()
@@ -306,8 +314,11 @@ ApplicationWindow {
         width: Math.min(520, parent ? parent.width - 48 : 520)
         message: "The pack holds your addon list and the settings of those addons for one character. Others import it with this app and pick their own character."
         confirmText: "Save pack"
-        confirmEnabled: fromChar.picked !== ""
-        onConfirmed: { backend.exportPack(fromChar.picked, packName.text); close() }
+        confirmEnabled: fromChar.picked !== "" && picked > 0
+        onConfirmed: {
+            backend.exportPack(fromChar.picked, packName.text, info.items.filter(i => !off[i.ref]).map(i => i.ref).join(" "))
+            close()
+        }
         Field {
             id: packName
             Layout.fillWidth: true
@@ -317,9 +328,45 @@ ApplicationWindow {
         }
         Caption { text: "Character to take the settings from" }
         Picker { id: fromChar; model: exportDialog.info.chars }
+        Caption { text: "Addons to include" }
+        ListView {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, 150)
+            clip: true
+            model: exportDialog.info.items
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            delegate: RowLayout {
+                id: inc
+                required property var modelData
+                readonly property bool on: !exportDialog.off[modelData.ref]
+                width: ListView.view.width - 12
+                height: 30
+                spacing: 10
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: modelData.name
+                Accessible.checked: on
+                TapHandler { onTapped: exportDialog.toggle(inc.modelData.ref) }
+                Rectangle {
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 5
+                    color: inc.on ? Theme.accent : "transparent"
+                    border.color: inc.on ? Theme.accent : Theme.sub
+                    Icon { anchors.centerIn: parent; visible: inc.on; shape: "check"; size: 12; color: Theme.onAccent }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: inc.modelData.name
+                    color: inc.on ? Theme.text : Theme.sub
+                    font.pixelSize: Theme.body
+                    elide: Text.ElideRight
+                }
+            }
+        }
         Text {
             Layout.fillWidth: true
-            text: "Your character and realm name are replaced with placeholders, but addon settings can still hold other names, such as alts, friends or guild members. Look through the zip before you post it."
+            text: "Your account, character, realm and alts are replaced with placeholders. Names of friends and guild members cannot be found automatically, so leave out addons that keep that kind of data, such as chat, friend list or damage history addons."
             color: Theme.sub
             font.pixelSize: Theme.small
             wrapMode: Text.WordWrap
