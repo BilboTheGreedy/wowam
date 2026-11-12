@@ -52,6 +52,8 @@ Search by name or paste a link. These work:
 - `https://addons.wago.io/addons/name` or `wago:name` (needs a Wago key)
 - `https://www.curseforge.com/wow/addons/name` or `cf:name` (needs a CurseForge key)
 
+**Read about an addon**: the page icon on a search result opens its description, with pictures. For GitHub that is the readme, for WoWInterface, Tukui and CurseForge the description from their page. Installed addons have "About this addon" in their menu.
+
 **From a zip file**: drop a zip onto the window, or use "From a zip file" in Browse. The app installs it and then tries to find where it comes from, so it can get updates. If it cannot, the addon stays as it is and you can set a source from its menu.
 
 "Only addons listed for ..." hides results the author has not marked for your game version.

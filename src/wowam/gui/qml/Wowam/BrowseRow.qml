@@ -100,6 +100,13 @@ Rectangle {
         }
 
         IconBtn {
+            iconName: "notes"
+            tip: "Read about it"
+            Accessible.name: "Read about " + root.name
+            onClicked: backend.openAbout(root.key, root.name)
+        }
+
+        IconBtn {
             iconName: "external"
             tip: "Open web page"
             visible: root.page !== ""

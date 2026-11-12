@@ -563,6 +563,12 @@ Item {
             onTriggered: backend.openUrl(menu.row.page)
         }
         PopItem {
+            text: "About this addon"
+            iconName: "notes"
+            visible: menu.managed
+            onTriggered: backend.openAbout(menu.row.key, menu.row.name)
+        }
+        PopItem {
             text: menu.row && menu.row.memo ? "Edit note" : "Add a note"
             iconName: "notes"
             visible: menu.managed

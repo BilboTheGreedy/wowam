@@ -6,6 +6,7 @@ A free addon manager with a real GUI for Linux, Windows and macOS. Works with Re
 
 - finds your WoW installs on its own, also under Lutris, Steam and Wine
 - installs and updates addons from GitHub, WoWInterface and Tukui with no account or key
+- read an addon's description and screenshots in the app before you install it
 - **share a whole addon setup with one link**, or install and follow somebody else's
 - drop a downloaded zip onto the window to install it
 - import a whole interface pack (addons and their settings) onto your own character

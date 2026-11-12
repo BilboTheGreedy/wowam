@@ -1,18 +1,20 @@
+import hashlib
 import os
 import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from urllib.parse import quote, urljoin
 
 from PySide6.QtCore import (
     Property, QAbstractListModel, QEvent, QModelIndex, QObject, QStandardPaths, Qt, QTimer, QUrl, Signal, Slot,
 )
-from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon
+from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import __version__, auras, backup, desktop, health, history, http, launch, lists, selfupdate, sources, uipack
+from .. import __version__, about, auras, backup, desktop, health, history, http, launch, lists, selfupdate, sources, uipack
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -36,6 +38,42 @@ CLIENT_ROLES = ["key", "label", "location", "version", "updates"]
 BROWSE_ROLES = [
     "key", "name", "author", "version", "source", "summary", "listed", "page", "installed", "busy", "progress",
 ]
+
+
+IMG_MD = re.compile(r'(!\[[^\]]*\]\()\s*<?([^)\s>]+)>?((?:\s+"[^"]*")?\s*\))')
+IMG_HTML = re.compile(r"""(<img\b[^>]*?\bsrc=["'])([^"']+)(["'])""", re.I)
+
+
+def local_images(text, base, cap=680, limit=16):
+    seen = {}
+
+    def local(url):
+        full = urljoin(base, url) if base else url
+        if not full.startswith(("https://", "http://")):
+            return url
+        full = re.sub(r"^(https://github\.com/[^/]+/[^/]+)/blob/", r"\1/raw/", full)
+        if full in seen:
+            return seen[full]
+        if len(seen) >= limit:
+            return full
+        seen[full] = full
+        try:
+            data = http.get_bytes(quote(full, safe=":/?&=%#+,;@~!$'()*[]"), 6_000_000, timeout=15)
+        except (http.HttpError, ValueError):
+            return full
+        img = QImage.fromData(data)
+        if img.isNull():
+            return full
+        if img.width() > cap:
+            img = img.scaledToWidth(cap, Qt.SmoothTransformation)
+        path = http.cache_dir() / "img" / (hashlib.sha1(full.encode()).hexdigest() + ".png")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if img.save(str(path), "PNG"):
+            seen[full] = QUrl.fromLocalFile(str(path)).toString()
+        return seen[full]
+
+    text = IMG_MD.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
+    return IMG_HTML.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
 
 
 def human_size(n):
@@ -130,6 +168,7 @@ class Backend(QObject):
     packReady = Signal("QVariant")
     exportRequested = Signal("QVariant")
     copyRequested = Signal("QVariant")
+    aboutReady = Signal("QVariant")
     profilesChanged = Signal()
 
     def __init__(self, uri=""):
@@ -706,6 +745,32 @@ class Backend(QObject):
             self.historyChanged.emit()
 
         self._bg(lambda: mgr.rollback(addon.ref), done)
+
+    @Slot(str, str)
+    def openAbout(self, ref, name):
+        client = self._client()
+        if not sources.parse_ref(ref):
+            return
+        have = ref in set(self._mgr(client).refs()) if client else False
+        base = {"ref": ref, "name": name or ref, "page": sources.page_of(ref), "installed": have, "loading": True,
+                "text": "", "format": "plain", "base": ""}
+        self.aboutReady.emit(base)
+
+        def done(result, err):
+            item = dict(base, loading=False)
+            if result and result["text"]:
+                item.update(result)
+            else:
+                item["text"] = err or "This addon has no description here. Open its web page to read more."
+            self.aboutReady.emit(item)
+
+        def work():
+            found = about.fetch(ref, self.cfg)
+            if found["format"] != "plain":
+                found["text"] = local_images(found["text"], found["base"])
+            return found
+
+        self._bg(work, done)
 
     def _undoable(self):
         client = self._client()

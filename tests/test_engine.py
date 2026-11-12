@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import shutil
 import subprocess
 
-from wowam import auras, backup, clients, health, installer, launch, lists, manager, sources, toc, uipack
+from wowam import about, auras, backup, clients, health, installer, launch, lists, manager, sources, toc, uipack
 from wowam.sources import Release
 
 
@@ -714,3 +714,23 @@ class PackTests(unittest.TestCase):
         self.assertIsNone(uipack.inspect(self.home / "nothing.zip"))
         make_zip(self.home / "addon.zip", {"Foo/Foo.toc": "## Title: Foo\n"})
         self.assertIsNone(uipack.inspect(self.home / "addon.zip"))
+
+
+class AboutTests(unittest.TestCase):
+    def test_bbcode(self):
+        out = about.bbcode('[IMG]http://x/a.png[/IMG]\r\n[SIZE="2"][B]Hi[/B][/SIZE]\r\n[URL="https://y"]link[/URL]\r\n[LIST][*]one[*]two[/LIST]')
+        self.assertIn("![image](http://x/a.png)", out)
+        self.assertIn("**Hi**", out)
+        self.assertIn("[link](https://y)", out)
+        self.assertIn("- one", out)
+        self.assertNotIn("[SIZE", out)
+
+    def test_github_readme(self):
+        def get(url, limit, **kw):
+            if url.endswith("/readme.md"):
+                return b"# Foo"
+            raise about.http.HttpError(404, "no")
+
+        with mock.patch.object(about.http, "get_bytes", get):
+            out = about.fetch("gh:a/b", Cfg())
+        self.assertEqual(out, {"text": "# Foo", "format": "markdown", "base": "https://raw.githubusercontent.com/a/b/HEAD/"})

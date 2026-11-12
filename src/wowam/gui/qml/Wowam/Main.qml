@@ -135,6 +135,7 @@ ApplicationWindow {
         function onPackReady(data) { packDialog.show(data) }
         function onExportRequested(data) { exportDialog.show(data) }
         function onCopyRequested(data) { copyDialog.show(data) }
+        function onAboutReady(data) { aboutDialog.show(data) }
         function onPublished(url) { shareDialog.busy = false; shareDialog.link = url }
         function onShowBrowse(text) {
             window.settingsOpen = false
@@ -359,6 +360,60 @@ ApplicationWindow {
             color: Theme.sub
             font.pixelSize: Theme.small
             wrapMode: Text.WordWrap
+        }
+    }
+
+    Modal {
+        id: aboutDialog
+        property var info: ({ ref: "", name: "", page: "", installed: false, loading: false, text: "", format: "plain", base: "" })
+        function show(d) {
+            info = d
+            title = d.name
+            if (!opened) open()
+        }
+        width: Math.min(760, parent ? parent.width - 48 : 760)
+        showCancel: !info.installed
+        cancelText: "Close"
+        confirmText: info.installed ? "Close" : "Install on " + backend.clientLabel
+        confirmEnabled: info.installed || backend.hasClient
+        onConfirmed: {
+            if (!info.installed) backend.installRef(info.ref)
+            close()
+        }
+        Flickable {
+            id: aboutFlick
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(Math.max(aboutText.implicitHeight, 80), window.height - 260)
+            contentWidth: Math.max(width - 12, aboutText.contentWidth)
+            contentHeight: aboutText.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+            Text {
+                id: aboutText
+                width: aboutFlick.width - 12
+                text: aboutDialog.info.loading ? "Loading" : aboutDialog.info.text
+                textFormat: aboutDialog.info.loading || aboutDialog.info.format === "plain" ? Text.PlainText
+                    : aboutDialog.info.format === "html" ? Text.RichText : Text.MarkdownText
+                baseUrl: aboutDialog.info.base
+                color: Theme.text
+                linkColor: Theme.accentText
+                font.pixelSize: Theme.body
+                lineHeight: 1.2
+                wrapMode: Text.Wrap
+                onLinkActivated: (link) => backend.openUrl(link)
+            }
+        }
+        Text {
+            visible: aboutDialog.info.page !== ""
+            Layout.fillWidth: true
+            text: "<a href='x'>Open web page</a>"
+            textFormat: Text.StyledText
+            color: Theme.sub
+            linkColor: Theme.accentText
+            font.pixelSize: Theme.small
+            onLinkActivated: backend.openUrl(aboutDialog.info.page)
         }
     }
 
