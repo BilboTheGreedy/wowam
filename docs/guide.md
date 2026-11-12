@@ -24,11 +24,16 @@ The menu on each row:
 | Reinstall | downloads the current version again |
 | Turn off / Turn on | moves the addon out of the AddOns folder into `Interface/AddOns.off` so the game does not load it, and back again |
 | Put back settings from last backup | restores only this addon's saved settings from the newest backup |
+| Add a note | a line of your own that shows on the row |
 | Pin this version | stops updates for this addon |
 | Include beta releases | also offers alpha and beta versions |
 | Change source | point the addon at another link |
 | Forget source | keep the files but stop tracking them |
 | Remove | deletes the addon folders |
+
+**Problems from the game**: if the game logged that an addon did not load, or BugGrabber recorded errors for it since you last installed or updated it, the row says so, for example "Did not load in the game: needs Ace3" or "12 errors in the game".
+
+**Profiles**: the Profiles button saves which addons are turned on under a name, for example Raid or Levelling. Switching to a profile turns the other addons off without removing them. "Turn off out of date addons" is for patch day: it saves a profile called Before safe mode first, so one click brings everything back.
 
 "Needs attention" next to the filter shows only addons with an update, an error, your own changes or an out of date mark. Handy after a game patch.
 
@@ -67,9 +72,13 @@ Importing:
 3. Pick the character that should get the settings. If the pack holds more than one character, pick which one to copy.
 4. The app makes a backup, copies the account settings to your account and the character settings to your character, changes profile names such as `Thrall - Tarren Mill` to your own, and installs the addons.
 
+Under "Settings to take" you can untick addons whose settings you want to keep as they are. "replaces yours" marks the ones you already have settings for.
+
 The character has to exist in the game folder, so log in with it once before importing. Only addon settings are touched, not keybinds or macros. To undo, restore the backup in Settings.
 
 Hand-made packs with `Interface/AddOns` and `WTF/Account/...` inside work the same way. The addons in them are copied in as they are.
+
+**Between your own characters**: Settings, Addon list, "Copy my interface to another character". The second character gets the first one's addon settings and is pointed at the same profiles, so a change on one shows on the other.
 
 Making one: Settings, Addon list, "Save my interface as a pack". Pick the character and untick addons you want to leave out. Your account name, character, realm and alts are replaced with placeholders. Names of friends and guild members cannot be found automatically, so leave out addons that keep that kind of data (chat, friend list, damage history) and have a look in the zip before you post it.
 

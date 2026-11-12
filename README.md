@@ -11,6 +11,8 @@ A free addon manager with a real GUI for Linux, Windows and macOS. Works with Re
 - import a whole interface pack (addons and their settings) onto your own character
 - changelogs, pin a version, go back to the previous one
 - backs up your settings before it updates anything
+- profiles: switch between sets of addons, for example raid and levelling
+- shows which addon the game reported errors for
 - keeps WeakAuras from wago.io up to date
 - tray icon, start at login, background updates, updates itself
 - no ads, no account, no tracking
@@ -83,6 +85,8 @@ Want somebody's whole interface, not only their addons? A pack is a zip with the
 - **Import**: drop the zip onto the window, or paste a link to it into Browse. Pick which of your characters should get it. The app backs up your settings, installs the addons, copies the settings to your account and character, and renames the profiles inside them to your character and realm.
 - **Make one**: Settings, Addon list, "Save my interface as a pack". Pick the character and give it a name. The zip lands in your Downloads folder, upload it wherever you like.
 - Zips made by hand with an `Interface` and a `WTF` folder inside work too.
+- You choose which addons' settings to take, and the app marks the ones that would replace your own.
+- "Copy my interface to another character" does the same between two of your own characters.
 
 ## More
 

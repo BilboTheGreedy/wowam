@@ -12,7 +12,7 @@ from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import __version__, auras, backup, desktop, history, http, launch, lists, selfupdate, sources, uipack
+from .. import __version__, auras, backup, desktop, health, history, http, launch, lists, selfupdate, sources, uipack
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -30,7 +30,7 @@ class _NoKey:
 ADDON_ROLES = [
     "key", "name", "version", "latest", "source", "status", "statusText", "pinned", "modified", "managed",
     "progress", "author", "page", "channel", "action", "folders", "busy", "previous", "notes", "outdated", "needs",
-    "off",
+    "off", "memo",
 ]
 CLIENT_ROLES = ["key", "label", "location", "version", "updates"]
 BROWSE_ROLES = [
@@ -129,6 +129,8 @@ class Backend(QObject):
     followsChanged = Signal()
     packReady = Signal("QVariant")
     exportRequested = Signal("QVariant")
+    copyRequested = Signal("QVariant")
+    profilesChanged = Signal()
 
     def __init__(self, uri=""):
         super().__init__()
@@ -147,6 +149,7 @@ class Backend(QObject):
         self._shared = []
         self._setup_changes = {}
         self._packs = {}
+        self._problems = {}
         self._attention = False
         self.window = None
         self._tick = QTimer(self)
@@ -351,6 +354,10 @@ class Backend(QObject):
             status, text, action = "modified", f"Needs {a.needs[0]}{more}", "find"
         else:
             status, text = "ok", "Up to date"
+        if status == "ok":
+            trouble = health.for_addon(self._problems, a.dirs, a.time)
+            if trouble:
+                status, text = "error", trouble
         return {
             "key": a.key,
             "name": a.name,
@@ -374,6 +381,7 @@ class Backend(QObject):
             "outdated": a.outdated,
             "needs": a.needs[0] if a.needs else "",
             "off": a.off,
+            "memo": a.memo,
         }
 
     def _publish(self):
@@ -453,7 +461,14 @@ class Backend(QObject):
             for a in addons or []:
                 self._check(a, gen, client)
 
-        self._bg(mgr.list, done)
+        def work():
+            try:
+                self._problems = health.problems(client)
+            except OSError:
+                self._problems = {}
+            return mgr.list()
+
+        self._bg(work, done)
 
     def _sync_auras(self, client, gen):
         self._auras = []
@@ -1252,10 +1267,20 @@ class Backend(QObject):
             "files": info["files"],
             "sources": self._char_rows(info["chars"]),
             "targets": self._char_rows(uipack.chars(client)),
+            "settings": uipack.settings(path),
+            "other": bool(info["game"]) and info["game"].lower() != client.label.lower(),
         })
 
-    @Slot(str, str, str)
-    def importPack(self, path, src_key, dst_key):
+    @Slot(str, result="QVariantList")
+    def packOverwrites(self, dst_key):
+        client = self._client()
+        dst = tuple(dst_key.split("|"))
+        if not client or len(dst) != 3:
+            return []
+        return sorted(uipack.existing(client, dst))
+
+    @Slot(str, str, str, str)
+    def importPack(self, path, src_key, dst_key, skip):
         client = self._client()
         info = self._packs.get(path)
         if not client or not info or not dst_key:
@@ -1284,7 +1309,118 @@ class Backend(QObject):
                 self._install(ref, quiet=True)
             self._reload()
 
-        self._bg(lambda: uipack.apply(client, path, src, dst, keep), done)
+        left_out = {s.lower() for s in skip.split("|") if s}
+        only = {s.lower() for s in uipack.settings(path)} - left_out if left_out else None
+        self._bg(lambda: uipack.apply(client, path, src, dst, keep, only), done)
+
+    @Slot()
+    def openCopy(self):
+        client = self._client()
+        found = uipack.chars(client) if client else []
+        if len(found) < 2:
+            self.toast.emit("This needs two characters that have logged in on this install", True)
+            return
+        self.copyRequested.emit({"chars": self._char_rows(found), "game": client.label})
+
+    @Slot(str, str)
+    def copyChar(self, src_key, dst_key):
+        client = self._client()
+        src, dst = tuple(src_key.split("|")), tuple(dst_key.split("|"))
+        found = uipack.chars(client) if client else []
+        if src not in found or dst not in found or src == dst:
+            return
+        keep = self.cfg.get("backup_keep")
+
+        def done(count, err):
+            if err:
+                self.toast.emit(err, True)
+            else:
+                self.toast.emit(f"{dst[2]} now has the interface of {src[2]} ({count} settings files)", False)
+            self.backupsChanged.emit()
+
+        self._bg(lambda: uipack.copy_char(client, src, dst, keep), done)
+
+    def _profile_map(self, client):
+        return dict(self.cfg.get("profiles").get(client.id, {})) if client else {}
+
+    @Property("QVariantList", notify=profilesChanged)
+    def profiles(self):
+        found = self._profile_map(self._client())
+        return [{"name": n, "count": len(found[n])} for n in sorted(found, key=str.lower)]
+
+    def _save_profiles(self, client, found):
+        data = dict(self.cfg.get("profiles"))
+        data[client.id] = found
+        self.cfg.set("profiles", data)
+        self.profilesChanged.emit()
+
+    @Slot(str)
+    def saveProfile(self, name):
+        client = self._client()
+        name = " ".join(name.split())[:40]
+        if not client or not name:
+            return
+        found = self._profile_map(client)
+        found[name] = [a.ref for a in self._mgr(client).list() if a.managed and not a.off]
+        self._save_profiles(client, found)
+        self.toast.emit(f"Saved the profile {name}", False)
+
+    @Slot(str)
+    def deleteProfile(self, name):
+        client = self._client()
+        if not client:
+            return
+        found = self._profile_map(client)
+        found.pop(name, None)
+        self._save_profiles(client, found)
+
+    def _switch(self, client, wanted, message):
+        mgr = self._mgr(client)
+
+        def work():
+            changed = 0
+            for a in mgr.list():
+                if a.managed and a.off == wanted(a):
+                    mgr.set_enabled(a.ref, wanted(a))
+                    changed += 1
+            return changed
+
+        def done(changed, err):
+            self.toast.emit(err or message(changed), bool(err))
+            self._reload()
+
+        self._bg(work, done)
+
+    @Slot(str)
+    def applyProfile(self, name):
+        client = self._client()
+        refs = set(self._profile_map(client).get(name, [])) if client else None
+        if refs is None or not client:
+            return
+        self._switch(client, lambda a: a.ref in refs, lambda n: f"Switched to {name}" + (f", {n} addon{'s' if n != 1 else ''} changed" if n else ""))
+
+    @Slot()
+    def safeMode(self):
+        client = self._client()
+        if not client:
+            return
+        found = self._profile_map(client)
+        found["Before safe mode"] = [a.ref for a in self._mgr(client).list() if a.managed and not a.off]
+        self._save_profiles(client, found)
+        self._switch(
+            client,
+            lambda a: not a.off and not a.outdated,
+            lambda n: f"Turned off {n} out of date addon{'s' if n != 1 else ''}. The profile Before safe mode turns them back on."
+            if n else "Nothing is out of date",
+        )
+
+    @Slot(str, str)
+    def setMemo(self, key, text):
+        e = self._entries.get(key)
+        client = self._client()
+        if e and client and e.addon.managed:
+            self._mgr(client).set_field(e.addon.ref, "memo", " ".join(text.split())[:120])
+            self._reload()
 
     @Slot()
     def openExport(self):

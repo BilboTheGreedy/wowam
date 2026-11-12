@@ -247,6 +247,10 @@ Item {
                     Btn { text: "Share it as a link"; iconName: "link"; enabled: backend.hasClient; onClicked: backend.openShare() }
                     Btn { text: "Save my interface as a pack"; iconName: "archive"; enabled: backend.hasClient; onClicked: backend.openExport() }
                 }
+                RowLayout {
+                    spacing: 8
+                    Btn { text: "Copy my interface to another character"; iconName: "copy"; enabled: backend.hasClient; onClicked: backend.openCopy() }
+                }
                 Repeater {
                     model: backend.follows
                     RowLayout {

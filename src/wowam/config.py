@@ -20,6 +20,7 @@ DEFAULTS = {
     "welcomed": False,
     "gists": {},
     "follows": {},
+    "profiles": {},
 }
 
 

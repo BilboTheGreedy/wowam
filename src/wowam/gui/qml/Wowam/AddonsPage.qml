@@ -244,6 +244,13 @@ Item {
             Btn {
                 visible: root.tab === 0
                 implicitHeight: 32
+                text: "Profiles"
+                kind: "ghost"
+                onClicked: profilesDialog.open()
+            }
+            Btn {
+                visible: root.tab === 0
+                implicitHeight: 32
                 text: "Needs attention"
                 kind: backend.attention ? "accent" : "ghost"
                 onClicked: backend.setAttention(!backend.attention)
@@ -550,6 +557,12 @@ Item {
             onTriggered: backend.openUrl(menu.row.page)
         }
         PopItem {
+            text: menu.row && menu.row.memo ? "Edit note" : "Add a note"
+            iconName: "notes"
+            visible: menu.managed
+            onTriggered: memoDialog.show(menu.row.key, menu.row.name, menu.row.memo)
+        }
+        PopItem {
             text: "Open folder"
             iconName: "folder"
             onTriggered: backend.openFolder(menu.row.key)
@@ -586,6 +599,85 @@ Item {
         confirmText: "Remove"
         danger: true
         onConfirmed: { backend.removeAddon(key); close() }
+    }
+
+    Modal {
+        id: memoDialog
+        property string key: ""
+        function show(k, name, text) {
+            key = k
+            title = "Note for " + name
+            memoField.text = text
+            open()
+            memoField.forceActiveFocus()
+        }
+        confirmText: "Save"
+        onConfirmed: { backend.setMemo(key, memoField.text); close() }
+        Field {
+            id: memoField
+            Layout.fillWidth: true
+            placeholderText: "For example: keep on 4.2, newer breaks my bars"
+            maximumLength: 120
+            Accessible.name: "Note"
+            onAccepted: { backend.setMemo(memoDialog.key, text); memoDialog.close() }
+        }
+    }
+
+    Modal {
+        id: profilesDialog
+        title: "Profiles for " + backend.clientLabel
+        message: "A profile remembers which addons are turned on. Switching turns the others off without removing them."
+        width: Math.min(500, parent ? parent.width - 48 : 500)
+        showCancel: false
+        confirmText: "Close"
+        onConfirmed: close()
+        Repeater {
+            model: backend.profiles
+            RowLayout {
+                id: prof
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: 8
+                Text {
+                    Layout.fillWidth: true
+                    text: prof.modelData.name + "  ·  " + prof.modelData.count + " addons on"
+                    color: Theme.text
+                    font.pixelSize: Theme.body
+                    elide: Text.ElideRight
+                }
+                Btn { text: "Switch"; implicitHeight: 30; onClicked: { backend.applyProfile(prof.modelData.name); profilesDialog.close() } }
+                IconBtn {
+                    iconName: "trash"
+                    tip: "Delete profile"
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    Accessible.name: "Delete profile " + prof.modelData.name
+                    onClicked: backend.deleteProfile(prof.modelData.name)
+                }
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 4
+            spacing: 8
+            Field {
+                id: profileName
+                Layout.fillWidth: true
+                placeholderText: "Name, for example Raid"
+                maximumLength: 40
+                Accessible.name: "Profile name"
+            }
+            Btn {
+                text: "Save current"
+                enabled: profileName.text.trim().length > 0
+                onClicked: { backend.saveProfile(profileName.text); profileName.text = "" }
+            }
+        }
+        Btn {
+            text: "Turn off out of date addons"
+            kind: "ghost"
+            onClicked: { backend.safeMode(); profilesDialog.close() }
+        }
     }
 
     Modal {

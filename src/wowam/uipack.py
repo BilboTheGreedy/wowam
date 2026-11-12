@@ -130,7 +130,89 @@ def _write(zf, info, target, src, dst):
     target.write_bytes(data)
 
 
-def apply(client, path, src, dst, keep=7):
+def settings(path):
+    names = {}
+    try:
+        zf = zipfile.ZipFile(path)
+    except (zipfile.BadZipFile, OSError):
+        return []
+    with zf:
+        for info in zf.infolist():
+            rest = _wtf(_parts(info.filename))
+            if rest and len(rest) >= 3 and rest[-2] == "SavedVariables" and rest[-1].lower().endswith(".lua"):
+                names.setdefault(rest[-1][:-4].lower(), rest[-1][:-4])
+    return sorted(names.values(), key=str.lower)
+
+
+def existing(client, dst):
+    account = client.wtf_dir / "Account" / dst[0]
+    found = set()
+    for base in (account / "SavedVariables", account / dst[1] / dst[2] / "SavedVariables"):
+        try:
+            found.update(p.stem.lower() for p in base.iterdir() if p.suffix.lower() == ".lua")
+        except OSError:
+            pass
+    return found
+
+
+def add_keys(text, src, dst):
+    old, new = f"{src[2]} - {src[1]}", f"{dst[2]} - {dst[1]}"
+    if old == new:
+        return text
+    pattern = re.compile(r'^([ \t]*)\["' + re.escape(old) + r'"\] = ("(?:[^"\\]|\\.)*"),[ \t]*(--.*)?$', re.M)
+
+    def repl(m):
+        return f'{m.group(0)}\n{m.group(1)}["{new}"] = {m.group(2)},'
+
+    if not pattern.search(text):
+        return text
+    text = re.sub(r'^[ \t]*\["' + re.escape(new) + r'"\] = "(?:[^"\\]|\\.)*",[ \t]*(--.*)?\n', "", text, flags=re.M)
+    return pattern.sub(repl, text)
+
+
+def copy_char(client, src, dst, keep=7):
+    if src == dst or not all(src) or not all(dst):
+        raise SourceError("Pick two different characters")
+    root = client.wtf_dir / "Account"
+    source = root / src[0] / src[1] / src[2] / "SavedVariables"
+    backup.create(client, keep)
+    done = 0
+    try:
+        files = sorted(p for p in source.iterdir() if p.suffix.lower() == ".lua")
+    except OSError:
+        files = []
+    target = root / dst[0] / dst[1] / dst[2] / "SavedVariables"
+    target.mkdir(parents=True, exist_ok=True)
+    for path in files:
+        try:
+            (target / path.name).write_text(rename(path.read_text(encoding="utf-8"), src, dst), encoding="utf-8")
+            done += 1
+        except (OSError, UnicodeDecodeError):
+            pass
+    shared = root / src[0] / "SavedVariables"
+    try:
+        files = sorted(p for p in shared.iterdir() if p.suffix.lower() == ".lua")
+    except OSError:
+        files = []
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if src[0] == dst[0]:
+            changed = add_keys(text, src, dst)
+            if changed != text:
+                path.write_text(changed, encoding="utf-8")
+                done += 1
+        else:
+            out = root / dst[0] / "SavedVariables"
+            out.mkdir(parents=True, exist_ok=True)
+            (out / path.name).write_text(rename(text, src, dst), encoding="utf-8")
+            done += 1
+    return done
+
+
+def apply(client, path, src, dst, keep=7, only=None):
     if not all(dst) or any("/" in p or "\\" in p or p in (".", "..") for p in dst):
         raise SourceError("Pick one of your characters first")
     try:
@@ -149,6 +231,8 @@ def apply(client, path, src, dst, keep=7):
             rest = _wtf(parts)
             if rest and len(rest) >= 3 and rest[-2] == "SavedVariables":
                 if not rest[-1].lower().endswith(".lua") or rest[0] != src[0]:
+                    continue
+                if only is not None and rest[-1][:-4].lower() not in only:
                     continue
                 if len(rest) == 3:
                     _write(zf, info, account / "SavedVariables" / rest[-1], src, dst)

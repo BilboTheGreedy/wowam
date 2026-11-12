@@ -27,6 +27,7 @@ Rectangle {
     required property bool outdated
     required property string needs
     required property bool off
+    required property string memo
 
     signal menuRequested(var row, var anchor)
     signal linkRequested(var row)
@@ -101,6 +102,7 @@ Rectangle {
                     if (root.version) parts.push(root.version)
                     if (root.author) parts.push(root.author)
                     if (root.folders > 1) parts.push(root.folders + " folders")
+                    if (root.memo) parts.push("note: " + root.memo)
                     return parts.join("  ·  ")
                 }
                 color: Theme.sub

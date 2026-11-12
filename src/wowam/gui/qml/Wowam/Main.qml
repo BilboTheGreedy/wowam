@@ -134,6 +134,7 @@ ApplicationWindow {
         function onShareRequested(data) { shareDialog.show(data) }
         function onPackReady(data) { packDialog.show(data) }
         function onExportRequested(data) { exportDialog.show(data) }
+        function onCopyRequested(data) { copyDialog.show(data) }
         function onPublished(url) { shareDialog.busy = false; shareDialog.link = url }
         function onShowBrowse(text) {
             window.settingsOpen = false
@@ -259,9 +260,19 @@ ApplicationWindow {
 
     Modal {
         id: packDialog
-        property var pack: ({ path: "", sources: [], targets: [], addons: 0, bundled: 0, files: 0 })
+        property var pack: ({ path: "", sources: [], targets: [], addons: 0, bundled: 0, files: 0, settings: [], other: false })
+        property var off: ({})
+        property var mine: []
+        readonly property int picked: pack.settings.filter(n => !off[n]).length
+        function toggle(name) {
+            var next = Object.assign({}, off)
+            next[name] = !next[name]
+            off = next
+        }
         function show(data) {
             pack = data
+            off = ({})
+            mine = []
             title = "Import " + data.name
             var bits = []
             if (data.by) bits.push("by " + data.by)
@@ -276,12 +287,70 @@ ApplicationWindow {
         }
         width: Math.min(520, parent ? parent.width - 48 : 520)
         confirmText: "Import to " + backend.clientLabel
-        confirmEnabled: toPick.picked !== ""
-        onConfirmed: { backend.importPack(pack.path, fromPick.picked, toPick.picked); close() }
+        confirmEnabled: toPick.picked !== "" && (picked > 0 || pack.settings.length === 0)
+        onConfirmed: {
+            backend.importPack(pack.path, fromPick.picked, toPick.picked, pack.settings.filter(n => off[n]).join("|"))
+            close()
+        }
         Caption { visible: packDialog.pack.sources.length > 1; text: "Copy the settings of" }
         Picker { id: fromPick; visible: packDialog.pack.sources.length > 1; model: packDialog.pack.sources }
         Caption { visible: packDialog.pack.targets.length > 0; text: "Give them to your character" }
-        Picker { id: toPick; model: packDialog.pack.targets }
+        Picker {
+            id: toPick
+            model: packDialog.pack.targets
+            onPickedChanged: packDialog.mine = picked ? backend.packOverwrites(picked) : []
+        }
+        Caption { visible: packDialog.pack.settings.length > 0; text: "Settings to take" }
+        ListView {
+            visible: packDialog.pack.settings.length > 0
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, 150)
+            clip: true
+            model: packDialog.pack.settings
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            delegate: RowLayout {
+                id: take
+                required property string modelData
+                readonly property bool on: !packDialog.off[modelData]
+                width: ListView.view.width - 12
+                height: 30
+                spacing: 10
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: modelData
+                Accessible.checked: on
+                TapHandler { onTapped: packDialog.toggle(take.modelData) }
+                Rectangle {
+                    implicitWidth: 18
+                    implicitHeight: 18
+                    radius: 5
+                    color: take.on ? Theme.accent : "transparent"
+                    border.color: take.on ? Theme.accent : Theme.sub
+                    Icon { anchors.centerIn: parent; visible: take.on; shape: "check"; size: 12; color: Theme.onAccent }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: take.modelData
+                    color: take.on ? Theme.text : Theme.sub
+                    font.pixelSize: Theme.body
+                    elide: Text.ElideRight
+                }
+                Text {
+                    visible: take.on && packDialog.mine.indexOf(take.modelData.toLowerCase()) >= 0
+                    text: "replaces yours"
+                    color: Theme.warn
+                    font.pixelSize: Theme.small
+                }
+            }
+        }
+        Text {
+            visible: packDialog.pack.other
+            Layout.fillWidth: true
+            text: "This pack was made on " + packDialog.pack.game + ". Some of its addons or settings may not fit " + backend.clientLabel + "."
+            color: Theme.warn
+            font.pixelSize: Theme.small
+            wrapMode: Text.WordWrap
+        }
         Text {
             Layout.fillWidth: true
             text: packDialog.pack.targets.length === 0
@@ -291,6 +360,27 @@ ApplicationWindow {
             font.pixelSize: Theme.small
             wrapMode: Text.WordWrap
         }
+    }
+
+    Modal {
+        id: copyDialog
+        property var info: ({ chars: [], game: "" })
+        function show(d) {
+            info = d
+            title = "Copy an interface to another character"
+            copyFrom.picked = ""
+            copyTo.picked = ""
+            open()
+        }
+        width: Math.min(520, parent ? parent.width - 48 : 520)
+        message: "The second character gets the first one's addon settings and uses the same profiles. A backup is made first. Close the game before copying."
+        confirmText: "Copy"
+        confirmEnabled: copyFrom.picked !== "" && copyTo.picked !== "" && copyFrom.picked !== copyTo.picked
+        onConfirmed: { backend.copyChar(copyFrom.picked, copyTo.picked); close() }
+        Caption { text: "From" }
+        Picker { id: copyFrom; model: copyDialog.info.chars }
+        Caption { text: "To" }
+        Picker { id: copyTo; model: copyDialog.info.chars }
     }
 
     Modal {

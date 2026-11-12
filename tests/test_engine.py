@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import shutil
 import subprocess
 
-from wowam import auras, backup, clients, installer, launch, lists, manager, sources, toc, uipack
+from wowam import auras, backup, clients, health, installer, launch, lists, manager, sources, toc, uipack
 from wowam.sources import Release
 
 
@@ -648,6 +648,50 @@ class PackTests(unittest.TestCase):
             self.assertNotIn(word, out)
         self.assertIn('["Alt2 - Realm2"] = 2', out)
         self.assertIn('"Alt2-Realm2"', out)
+
+    def test_copy_to_alt(self):
+        sv = self.char("ME", "Tarren Mill", "Thrall")
+        alt = self.char("ME", "Draenor", "Jaina")
+        acct = self.client.wtf_dir / "Account" / "ME" / "SavedVariables"
+        (acct / "Foo.lua").write_text('FooDB = {\n\t["profileKeys"] = {\n\t\t["Thrall - Tarren Mill"] = "Healer",\n\t\t["Jaina - Draenor"] = "Default",\n\t},\n}\n')
+        (sv / "Foo.lua").write_text('FooChar = { name = "Thrall" }')
+        n = uipack.copy_char(self.client, ("ME", "Tarren Mill", "Thrall"), ("ME", "Draenor", "Jaina"))
+        self.assertEqual(n, 2)
+        text = (acct / "Foo.lua").read_text()
+        self.assertIn('["Thrall - Tarren Mill"] = "Healer",', text)
+        self.assertIn('["Jaina - Draenor"] = "Healer",', text)
+        self.assertNotIn('"Default"', text)
+        self.assertEqual((alt / "Foo.lua").read_text(), 'FooChar = { name = "Jaina" }')
+
+    def test_partial(self):
+        make_zip(self.home / "ui.zip", {
+            "WTF/Account/S/SavedVariables/Bar.lua": "a",
+            "WTF/Account/S/SavedVariables/Foo.lua": "b",
+        })
+        self.assertEqual(uipack.settings(self.home / "ui.zip"), ["Bar", "Foo"])
+        self.char("YOU", "Draenor", "Jaina")
+        res = uipack.apply(self.client, self.home / "ui.zip", ("S", "", ""), ("YOU", "Draenor", "Jaina"), only={"foo"})
+        self.assertEqual(res["settings"], 1)
+        self.assertEqual(uipack.existing(self.client, ("YOU", "Draenor", "Jaina")), {"foo"})
+
+    def test_problems(self):
+        logs = self.client.path / "Logs"
+        logs.mkdir(parents=True)
+        (logs / "FrameXML.log").write_text(
+            "11/9 22:13:38.896  AddOn [Base] failure to load: missing\n"
+            "11/9 22:13:38.896  AddOn [Skin] Failed to load missing dependency [Base]\n"
+        )
+        sv = self.client.wtf_dir / "Account" / "ME" / "SavedVariables"
+        sv.mkdir(parents=True)
+        (sv / "!BugGrabber.lua").write_text(
+            'BugGrabberDB = { ["errors"] = { { ["message"] = "Interface/AddOns/Foo/core.lua:3: attempt to index \\"x\\"" }, '
+            '{ ["message"] = "Interface/AddOns/Foo/core.lua:9: bad" }, { ["message"] = "other" } } }'
+        )
+        found = health.problems(self.client)
+        self.assertEqual(health.for_addon(found, ["Foo"]), "2 errors in the game")
+        self.assertEqual(health.for_addon(found, ["Skin"]), "Did not load in the game: needs Base")
+        self.assertEqual(health.for_addon(found, ["Foo"], since=4102444800), "")
+        self.assertEqual(health.for_addon(found, ["Nope"]), "")
 
     def test_hand_made_pack(self):
         make_zip(self.home / "ui.zip", {

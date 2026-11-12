@@ -36,6 +36,8 @@ class Addon:
     previous: str = ""
     outdated: bool = False
     off: bool = False
+    time: int = 0
+    memo: str = ""
     needs: list = field(default_factory=list)
     candidates: list = field(default_factory=list)
 
@@ -261,6 +263,8 @@ class Manager:
                     Addon(
                         key=ref,
                         off=off,
+                        time=int(rec.get("time") or 0),
+                        memo=str(rec.get("memo") or ""),
                         ref=ref,
                         name=toc.tidy(rec.get("name", "")) or ref,
                         version=rec.get("version", ""),
