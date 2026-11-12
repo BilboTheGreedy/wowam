@@ -28,6 +28,7 @@ Rectangle {
     required property string needs
     required property bool off
     required property string memo
+    required property string stale
 
     signal menuRequested(var row, var anchor)
     signal linkRequested(var row)
@@ -93,6 +94,14 @@ Rectangle {
                     radius: 4
                     color: Theme.tint(Theme.sub, 0.16)
                     Text { id: old; anchors.centerIn: parent; text: "OUT OF DATE"; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
+                }
+                Rectangle {
+                    visible: root.stale !== ""
+                    implicitWidth: staleText.implicitWidth + 10
+                    implicitHeight: 16
+                    radius: 4
+                    color: Theme.tint(Theme.sub, 0.16)
+                    Text { id: staleText; anchors.centerIn: parent; text: "NO UPDATE SINCE " + root.stale; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
                 }
                 Item { Layout.fillWidth: true }
             }

@@ -177,6 +177,12 @@ Item {
                 text: backend.updateCount === 1 ? "Update 1 addon" : "Update all " + backend.updateCount
                 onClicked: backend.updateAll()
             }
+            Btn {
+                visible: backend.undoCount > 0 && backend.updateCount === 0 && !backend.working
+                iconName: "back"
+                text: "Undo last update"
+                onClicked: backend.undoUpdates()
+            }
         }
 
         Repeater {

@@ -285,6 +285,21 @@ Item {
             }
 
             Card {
+                title: "Disk space" + (backend.hasClient ? "  ·  " + backend.clientLabel : "")
+                Repeater {
+                    model: backend.usage
+                    RowLayout {
+                        id: use
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Text { Layout.fillWidth: true; text: use.modelData.label; color: Theme.text; font.pixelSize: Theme.body; elide: Text.ElideRight }
+                        Text { text: use.modelData.size; color: Theme.sub; font.pixelSize: Theme.body }
+                    }
+                }
+                Btn { text: backend.usage.length > 0 ? "Measure again" : "Measure"; enabled: backend.hasClient; onClicked: backend.measure() }
+            }
+
+            Card {
                 title: "Leftover settings" + (backend.hasClient ? "  ·  " + backend.clientLabel : "")
                 hint: "Removed addons leave their saved settings behind. Finding them changes nothing; deleting makes a backup first."
                 Text {

@@ -30,7 +30,7 @@ class _NoKey:
 ADDON_ROLES = [
     "key", "name", "version", "latest", "source", "status", "statusText", "pinned", "modified", "managed",
     "progress", "author", "page", "channel", "action", "folders", "busy", "previous", "notes", "outdated", "needs",
-    "off", "memo",
+    "off", "memo", "stale",
 ]
 CLIENT_ROLES = ["key", "label", "location", "version", "updates"]
 BROWSE_ROLES = [
@@ -150,6 +150,8 @@ class Backend(QObject):
         self._setup_changes = {}
         self._packs = {}
         self._problems = {}
+        self._batch = {}
+        self._usage = []
         self._attention = False
         self.window = None
         self._tick = QTimer(self)
@@ -382,7 +384,15 @@ class Backend(QObject):
             "needs": a.needs[0] if a.needs else "",
             "off": a.off,
             "memo": a.memo,
+            "stale": self._stale(rel),
         }
+
+    @staticmethod
+    def _stale(rel):
+        year = rel.date[:4] if rel and rel.date else ""
+        if year.isdigit() and int(year) <= time.gmtime().tm_year - 2:
+            return year
+        return ""
 
     def _publish(self):
         words = self._filter.lower().split()
@@ -697,6 +707,65 @@ class Backend(QObject):
 
         self._bg(lambda: mgr.rollback(addon.ref), done)
 
+    def _undoable(self):
+        client = self._client()
+        keys = self._batch.get(client.id, []) if client else []
+        return [k for k in keys if k in self._entries and self._entries[k].addon.previous and not self._entries[k].busy]
+
+    @Property(int, notify=changed)
+    def undoCount(self):
+        return len(self._undoable())
+
+    @Slot()
+    def undoUpdates(self):
+        client = self._client()
+        keys = self._undoable()
+        if not client or not keys:
+            return
+        self._batch.pop(client.id, None)
+        for k in keys:
+            self.rollback(k)
+
+    usageChanged = Signal()
+
+    @Property("QVariantList", notify=usageChanged)
+    def usage(self):
+        return self._usage
+
+    @Slot()
+    def measure(self):
+        client = self._client()
+        if not client:
+            return
+        mgr = self._mgr(client)
+
+        def size(path):
+            total = 0
+            for base, dirs, files in os.walk(path):
+                for name in files:
+                    try:
+                        total += os.lstat(os.path.join(base, name)).st_size
+                    except OSError:
+                        pass
+            return total
+
+        def work():
+            addons = [(a.name, sum(size(client.addons_dir / d) for d in a.dirs)) for a in mgr.list() if not a.off]
+            addons.sort(key=lambda x: -x[1])
+            rows = [("All addons", sum(s for _, s in addons))]
+            rows += [(f"   {name}", s) for name, s in addons[:5]]
+            rows.append(("Addons that are turned off", size(mgr.off_dir)))
+            rows.append(("Saved settings", size(client.wtf_dir)))
+            rows.append(("Backups", size(backup.folder(client))))
+            rows.append(("Previous versions kept for going back", size(mgr.rollback_file("x").parent)))
+            return [{"label": label, "size": human_size(s)} for label, s in rows if s]
+
+        def done(result, err):
+            self._usage = result or []
+            self.usageChanged.emit()
+
+        self._bg(work, done)
+
     @Slot(str, result="QVariantMap")
     def notesFor(self, key):
         e = self._entries.get(key)
@@ -715,6 +784,7 @@ class Backend(QObject):
         if not client or not keys:
             return
         gen = self._gen
+        self._batch[client.id] = list(keys)
         for k in keys:
             self._entries[k].busy = "Waiting"
         self._publish()

@@ -56,6 +56,7 @@ class Release:
     page: str = ""
     headers: dict = field(default_factory=dict)
     notes: str = ""
+    date: str = ""
 
 
 def parse_ref(text):
@@ -229,6 +230,7 @@ def _gh_branch(ident, cfg):
         page=f"https://github.com/{ident}",
         headers=_gh_headers(cfg),
         notes=(info.get("message") or "").strip()[:8000],
+        date=day,
     )
 
 
@@ -257,6 +259,7 @@ def _gh_latest(ident, client, cfg, channel):
                 page=f"https://github.com/{ident}",
                 headers=headers,
                 notes=(release.get("body") or "").strip()[:8000],
+                date=(release.get("published_at") or "")[:10],
             )
     raise SourceError(f"{ident} has no download for {client.label}.")
 

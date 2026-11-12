@@ -13,6 +13,7 @@ Lists every addon in the selected install. Addons you installed by hand are matc
 - **Update** on a row, or **Update all** at the top
 - **OUT OF DATE** means the addon was made for an older game version. It may still work.
 - **Needs X** means an addon it depends on is missing. "Find it" installs it when the app knows where it is, otherwise it searches for it.
+- **NO UPDATE SINCE 2023** (or another year) means the author has not released anything for two years or more.
 - **Changed by you** means files were edited after install. These are skipped by Update all so your changes are not lost.
 
 The menu on each row:
@@ -30,6 +31,8 @@ The menu on each row:
 | Change source | point the addon at another link |
 | Forget source | keep the files but stop tracking them |
 | Remove | deletes the addon folders |
+
+**Undo last update**: after "Update all" the button turns into "Undo last update". It puts the previous version of every addon from that round back and pins them.
 
 **Problems from the game**: if the game logged that an addon did not load, or BugGrabber recorded errors for it since you last installed or updated it, the row says so, for example "Did not load in the game: needs Ace3" or "12 errors in the game".
 
@@ -97,6 +100,8 @@ Keys are kept in the config file on your computer and only sent to the service t
 ## Backups
 
 A backup is a zip of the WTF folder, where the game keeps addon settings, keybinds and macros. By default one is made before updates, and the last 7 are kept. Settings has "Back up now", the list of backups and restore.
+
+"Disk space" in Settings measures how much room the addons, saved settings, backups and kept previous versions take.
 
 "Leftover settings" finds saved settings of addons you no longer have and can delete them. It makes a backup first.
 
