@@ -2153,6 +2153,7 @@ class Door(QObject):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.live = []
         self.server = QLocalServer(self)
         self.server.setSocketOptions(QLocalServer.UserAccessOption)
         self.server.newConnection.connect(self.accept)
@@ -2164,12 +2165,13 @@ class Door(QObject):
             sock = self.server.nextPendingConnection()
             sock.readyRead.connect(lambda s=sock: self.read(s))
             sock.disconnected.connect(lambda s=sock: self.gone(s))
+            self.live.append(sock)
             self.read(sock)
 
     def read(self, sock):
-        if sock.property("seen") or not sock.canReadLine():
+        if sock not in self.live or not sock.canReadLine():
             return
-        sock.setProperty("seen", True)
+        self.live.remove(sock)
         self.opened.emit(bytes(sock.readLine(2048).data()).decode("utf-8", "replace").strip())
         sock.write(b"ok\n")
         sock.flush()
@@ -2177,6 +2179,8 @@ class Door(QObject):
 
     def gone(self, sock):
         self.read(sock)
+        if sock in self.live:
+            self.live.remove(sock)
         sock.deleteLater()
 
 

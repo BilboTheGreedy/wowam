@@ -2,8 +2,8 @@ import io
 import os
 import sys
 import tarfile
+import subprocess
 import tempfile
-import threading
 import time
 import unittest
 from pathlib import Path
@@ -122,16 +122,20 @@ class DoorTests(unittest.TestCase):
                 door = gui.Door(qapp)
                 got = []
                 door.opened.connect(got.append)
-                sent = []
-                second = threading.Thread(target=lambda: sent.append(gui.hand_over("gh:a/b")))
-                second.start()
-                end = time.time() + 5
-                while (not got or second.is_alive()) and time.time() < end:
+                src = str(Path(__file__).resolve().parent.parent / "src")
+                code = (
+                    "import sys; sys.path.insert(0, sys.argv[1]); from PySide6.QtCore import QCoreApplication; "
+                    "from wowam.gui import app; a = QCoreApplication([]); sys.exit(0 if app.hand_over('gh:a/b') else 1)"
+                )
+                second = subprocess.Popen([sys.executable, "-c", code, src], env=dict(os.environ))
+                end = time.time() + 30
+                while (not got or second.poll() is None) and time.time() < end:
                     qapp.processEvents()
                     time.sleep(0.01)
-                second.join(5)
+                if second.poll() is None:
+                    second.kill()
                 door.server.close()
-                self.assertEqual(sent, [True])
+                self.assertEqual(second.wait(), 0)
                 self.assertEqual(got, ["gh:a/b"])
 
 
