@@ -716,6 +716,21 @@ class PackTests(unittest.TestCase):
         self.assertIn('["Alt2 - Realm2"] = 2', out)
         self.assertIn('"Alt2-Realm2"', out)
 
+    def test_realm_is_a_zone(self):
+        text = (
+            'DB = {\n\t["profileKeys"] = {\n\t\t["Thrall - Draenor"] = "Thrall",\n\t\t["Alt - Draenor"] = "Draenor",\n\t},\n'
+            '\t["profiles"] = {\n\t\t["Thrall"] = {\n\t\t\t["zone"] = "Draenor",\n\t\t},\n\t\t["Draenor"] = {\n\t\t},\n\t},\n'
+            '\t["nodes"] = {\n\t\t["Draenor"] = {\n\t\t\t["Thrall"] = 1,\n\t\t},\n\t},\n}\n'
+        )
+        out = uipack.rename(text, ("A", "Draenor", "Thrall"), ("A", "Outland", "Jaina"))
+        self.assertIn('["Jaina - Outland"] = "Jaina",', out)
+        self.assertIn('["Alt - Draenor"] = "Outland",', out)
+        self.assertIn('\t\t["Jaina"] = {\n\t\t\t["zone"] = "Draenor",', out)
+        self.assertIn('\t\t["Outland"] = {\n\t\t},', out)
+        self.assertIn('["nodes"] = {\n\t\t["Draenor"] = {\n\t\t\t["Thrall"] = 1,', out)
+        own = uipack.rename('n = "Thrall", z = "Draenor"', ("A", "Draenor", "Thrall"), ("A", "Outland", "Jaina"), ("Thrall",))
+        self.assertEqual(own, 'n = "Jaina", z = "Draenor"')
+
     def test_copy_to_alt(self):
         sv = self.char("ME", "Tarren Mill", "Thrall")
         alt = self.char("ME", "Draenor", "Jaina")

@@ -20,12 +20,14 @@ Rectangle {
         anchors.margins: 18
         spacing: 4
         Text {
+            textFormat: Text.PlainText
             text: root.title
             color: Theme.text
             font.pixelSize: 15
             font.weight: Font.DemiBold
         }
         Text {
+            textFormat: Text.PlainText
             visible: root.hint !== ""
             text: root.hint
             color: Theme.sub

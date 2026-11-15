@@ -42,6 +42,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+                textFormat: Text.PlainText
                 text: nav.label
                 color: nav.active ? Theme.text : Theme.sub
                 font.pixelSize: Theme.body
@@ -69,6 +70,7 @@ Rectangle {
             Column {
                 spacing: 1
                 Text {
+                    textFormat: Text.PlainText
                     text: "WORLD OF WARCRAFT"
                     color: Theme.faint
                     font.pixelSize: 10
@@ -76,6 +78,7 @@ Rectangle {
                     font.letterSpacing: 1.1
                 }
                 Text {
+                    textFormat: Text.PlainText
                     text: "Addon Manager"
                     color: Theme.text
                     font.pixelSize: 16
@@ -85,6 +88,7 @@ Rectangle {
         }
 
         Text {
+            textFormat: Text.PlainText
             text: "INSTALLS"
             color: Theme.faint
             font.pixelSize: 11
@@ -138,6 +142,7 @@ Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
                     Text {
+                        textFormat: Text.PlainText
                         width: parent.width
                         text: item.label
                         color: Theme.text
@@ -146,6 +151,7 @@ Rectangle {
                         elide: Text.ElideRight
                     }
                     Text {
+                        textFormat: Text.PlainText
                         width: parent.width
                         text: item.location + (item.version ? "  ·  " + item.version.split(".").slice(0, 3).join(".") : "")
                         color: Theme.sub
@@ -164,6 +170,7 @@ Rectangle {
                     radius: 11
                     color: Theme.accent
                     Text {
+                        textFormat: Text.PlainText
                         id: count
                         anchors.centerIn: parent
                         text: item.updates

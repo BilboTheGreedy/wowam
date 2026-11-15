@@ -77,6 +77,59 @@ class SelfUpdateTests(unittest.TestCase):
 
 
 @unittest.skipIf(QGuiApplication is None, "PySide6 not installed")
+class PlainTextTests(unittest.TestCase):
+    def test_every_text_has_a_format(self):
+        root = Path(__file__).resolve().parent.parent / "src" / "wowam" / "gui" / "qml" / "Wowam"
+        bad = []
+        for path in sorted(root.glob("*.qml")):
+            lines = path.read_text().split("\n")
+            for i, line in enumerate(lines):
+                if "Text {" not in line:
+                    continue
+                block = [line]
+                depth = line.count("{") - line.count("}")
+                j = i + 1
+                while depth > 0 and j < len(lines):
+                    block.append(lines[j])
+                    depth += lines[j].count("{") - lines[j].count("}")
+                    j += 1
+                if not any("textFormat" in b for b in block):
+                    bad.append(f"{path.name}:{i + 1}")
+        self.assertEqual(bad, [])
+
+    @unittest.skipIf(QGuiApplication is None, "no PySide6")
+    def test_notes_lose_images(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from wowam.gui import app as gui
+
+        out = gui.no_images('a ![x](http://h/t.png) b <img src="http://h/t.png"> c')
+        self.assertNotIn("http://", out)
+        with mock.patch.object(gui.http, "get_bytes", side_effect=gui.http.HttpError(0, "no")):
+            self.assertNotIn("http://", gui.local_images("![x](http://h/t.png)", ""))
+
+
+@unittest.skipIf(QGuiApplication is None, "no PySide6")
+class DoorTests(unittest.TestCase):
+    def test_second_start_hands_over(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp, "APPDATA": tmp, "HOME": tmp}):
+                os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+                from wowam.gui import app as gui
+
+                qapp = QGuiApplication.instance() or QGuiApplication([])
+                self.assertFalse(gui.hand_over("gh:a/b"))
+                door = gui.Door(qapp)
+                got = []
+                door.opened.connect(got.append)
+                self.assertTrue(gui.hand_over("gh:a/b"))
+                end = time.time() + 3
+                while not got and time.time() < end:
+                    qapp.processEvents()
+                    time.sleep(0.01)
+                door.server.close()
+                self.assertEqual(got, ["gh:a/b"])
+
+
 class WindowTests(unittest.TestCase):
     def test_window_loads(self):
         with tempfile.TemporaryDirectory() as tmp:

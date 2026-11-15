@@ -174,12 +174,14 @@ Item {
             width: parent.width - 40
             spacing: 8
             Text {
+                textFormat: Text.PlainText
                 text: (root.step + 1) + " of " + root.steps.length
                 color: Theme.sub
                 font.pixelSize: Theme.small
                 font.weight: Font.DemiBold
             }
             Text {
+                textFormat: Text.PlainText
                 Layout.fillWidth: true
                 text: root.steps.length > 0 ? root.steps[root.step].title : ""
                 color: Theme.text
@@ -188,6 +190,7 @@ Item {
                 wrapMode: Text.WordWrap
             }
             Text {
+                textFormat: Text.PlainText
                 Layout.fillWidth: true
                 text: root.steps.length > 0 ? root.steps[root.step].text : ""
                 color: Theme.sub

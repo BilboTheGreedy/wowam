@@ -34,6 +34,7 @@ Popup {
     contentItem: ColumnLayout {
         spacing: 10
         Text {
+            textFormat: Text.PlainText
             text: root.title
             color: Theme.text
             font.pixelSize: 17
@@ -42,6 +43,7 @@ Popup {
             Layout.fillWidth: true
         }
         Text {
+            textFormat: Text.PlainText
             visible: root.message !== ""
             text: root.message
             color: Theme.sub

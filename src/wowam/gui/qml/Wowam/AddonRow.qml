@@ -54,6 +54,7 @@ Rectangle {
             radius: 10
             color: Theme.tint(Theme.avatar(root.name), Theme.dark ? 0.2 : 0.14)
             Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: root.name.replace(/^[^A-Za-z0-9]+/, "").charAt(0).toUpperCase()
                 color: Theme.avatar(root.name)
@@ -70,6 +71,7 @@ Rectangle {
             RowLayout {
                 spacing: 6
                 Text {
+                    textFormat: Text.PlainText
                     text: root.name
                     color: Theme.text
                     font.pixelSize: 14
@@ -85,7 +87,7 @@ Rectangle {
                     implicitHeight: 16
                     radius: 4
                     color: Theme.tint(Theme.warn, 0.16)
-                    Text { id: beta; anchors.centerIn: parent; text: "BETA"; color: Theme.warn; font.pixelSize: 9; font.weight: Font.Bold }
+                    Text { textFormat: Text.PlainText; id: beta; anchors.centerIn: parent; text: "BETA"; color: Theme.warn; font.pixelSize: 9; font.weight: Font.Bold }
                 }
                 Rectangle {
                     visible: root.outdated
@@ -93,7 +95,7 @@ Rectangle {
                     implicitHeight: 16
                     radius: 4
                     color: Theme.tint(Theme.sub, 0.16)
-                    Text { id: old; anchors.centerIn: parent; text: "OUT OF DATE"; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
+                    Text { textFormat: Text.PlainText; id: old; anchors.centerIn: parent; text: "OUT OF DATE"; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
                 }
                 Rectangle {
                     visible: root.stale !== ""
@@ -101,11 +103,12 @@ Rectangle {
                     implicitHeight: 16
                     radius: 4
                     color: Theme.tint(Theme.sub, 0.16)
-                    Text { id: staleText; anchors.centerIn: parent; text: "NO UPDATE SINCE " + root.stale; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
+                    Text { textFormat: Text.PlainText; id: staleText; anchors.centerIn: parent; text: "NO UPDATE SINCE " + root.stale; color: Theme.sub; font.pixelSize: 9; font.weight: Font.Bold }
                 }
                 Item { Layout.fillWidth: true }
             }
             Text {
+                textFormat: Text.PlainText
                 text: {
                     var parts = []
                     if (root.version) parts.push(root.version)
@@ -133,7 +136,7 @@ Rectangle {
                 height: 22
                 radius: 6
                 color: Theme.tint(Theme.sub, 0.13)
-                Text { id: chip; anchors.centerIn: parent; text: root.source; color: Theme.sub; font.pixelSize: 11; font.weight: Font.Medium }
+                Text { textFormat: Text.PlainText; id: chip; anchors.centerIn: parent; text: root.source; color: Theme.sub; font.pixelSize: 11; font.weight: Font.Medium }
             }
         }
 
@@ -156,6 +159,7 @@ Rectangle {
                 border.color: Theme.faint
             }
             Text {
+                textFormat: Text.PlainText
                 id: statusLabel
                 text: root.statusText
                 color: root.status === "ok" || root.status === "unknown" || root.status === "checking" ? Theme.sub : Theme.statusColor(root.status)
@@ -169,7 +173,7 @@ Rectangle {
                 ToolTip {
                     visible: statusHover.hovered && statusLabel.truncated
                     delay: 400
-                    contentItem: Text { text: root.statusText; color: Theme.text; font.pixelSize: Theme.small; wrapMode: Text.WordWrap; width: Math.min(implicitWidth, 360) }
+                    contentItem: Text { textFormat: Text.PlainText; text: root.statusText; color: Theme.text; font.pixelSize: Theme.small; wrapMode: Text.WordWrap; width: Math.min(implicitWidth, 360) }
                     background: Rectangle { color: Theme.raised; radius: 6; border.color: Theme.line }
                 }
             }

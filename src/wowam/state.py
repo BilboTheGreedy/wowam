@@ -18,6 +18,6 @@ class State:
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")
         tmp.write_text(json.dumps({"version": 1, "addons": self.addons}, indent=2))
         os.replace(tmp, self.path)

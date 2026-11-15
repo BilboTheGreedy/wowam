@@ -37,6 +37,7 @@ Rectangle {
             radius: 10
             color: Theme.tint(Theme.avatar(root.name), Theme.dark ? 0.2 : 0.14)
             Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: root.name.replace(/^[^A-Za-z0-9]+/, "").charAt(0).toUpperCase()
                 color: Theme.avatar(root.name)
@@ -51,6 +52,7 @@ Rectangle {
             Layout.preferredWidth: 200
             spacing: 3
             Text {
+                textFormat: Text.PlainText
                 text: root.name
                 color: Theme.text
                 font.pixelSize: 14
@@ -59,6 +61,7 @@ Rectangle {
                 Layout.fillWidth: true
             }
             Text {
+                textFormat: Text.PlainText
                 text: {
                     var parts = []
                     if (root.author) parts.push(root.author)
@@ -84,6 +87,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+                textFormat: Text.PlainText
                 text: (root.listed === "yes" ? "Listed for " : "Not listed for ") + backend.clientLabel
                 color: root.listed === "yes" ? Theme.ok : Theme.warn
                 font.pixelSize: Theme.small
@@ -96,7 +100,7 @@ Rectangle {
             Layout.preferredHeight: 22
             radius: 6
             color: Theme.tint(Theme.sub, 0.13)
-            Text { id: chip; anchors.centerIn: parent; text: root.source; color: Theme.sub; font.pixelSize: 11; font.weight: Font.Medium }
+            Text { textFormat: Text.PlainText; id: chip; anchors.centerIn: parent; text: root.source; color: Theme.sub; font.pixelSize: 11; font.weight: Font.Medium }
         }
 
         IconBtn {
@@ -132,7 +136,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
                 Spinner { color: Theme.accentText; anchors.verticalCenter: parent.verticalCenter }
-                Text { text: "Installing"; color: Theme.accentText; font.pixelSize: Theme.small; anchors.verticalCenter: parent.verticalCenter }
+                Text { textFormat: Text.PlainText; text: "Installing"; color: Theme.accentText; font.pixelSize: Theme.small; anchors.verticalCenter: parent.verticalCenter }
             }
         }
     }

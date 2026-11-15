@@ -52,6 +52,7 @@ Item {
             anchors.centerIn: parent
             spacing: 7
             Text {
+                textFormat: Text.PlainText
                 text: tb.label
                 color: tb.active ? Theme.text : tbHover.hovered || tb.activeFocus ? Theme.text : Theme.sub
                 font.pixelSize: 14
@@ -65,7 +66,7 @@ Item {
                 radius: 9
                 color: Theme.tint(Theme.sub, 0.18)
                 anchors.verticalCenter: parent.verticalCenter
-                Text { id: tbCount; anchors.centerIn: parent; text: tb.badge; color: Theme.sub; font.pixelSize: 11; font.weight: Font.DemiBold }
+                Text { textFormat: Text.PlainText; id: tbCount; anchors.centerIn: parent; text: tb.badge; color: Theme.sub; font.pixelSize: 11; font.weight: Font.DemiBold }
             }
         }
         Rectangle {
@@ -94,6 +95,7 @@ Item {
             Icon { anchors.centerIn: parent; shape: parent.parent.iconName; size: 26; color: Theme.sub }
         }
         Text {
+            textFormat: Text.PlainText
             Layout.topMargin: 8
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
@@ -104,6 +106,7 @@ Item {
             wrapMode: Text.WordWrap
         }
         Text {
+            textFormat: Text.PlainText
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
             text: parent.detail
@@ -137,12 +140,14 @@ Item {
                 Layout.fillWidth: true
                 spacing: 4
                 Text {
+                    textFormat: Text.PlainText
                     text: backend.clientLabel
                     color: Theme.text
                     font.pixelSize: Theme.title
                     font.weight: Font.Bold
                 }
                 Text {
+                    textFormat: Text.PlainText
                     Layout.fillWidth: true
                     text: {
                         if (backend.loading) return "Reading addon folder"
@@ -208,6 +213,7 @@ Item {
                     spacing: 10
                     Icon { shape: "copy"; size: 16; color: Theme.accentText }
                     Text {
+                        textFormat: Text.PlainText
                         Layout.fillWidth: true
                         text: changeStrip.modelData.name + " changed: "
                             + [changeStrip.modelData.added.length ? changeStrip.modelData.added.length + " added" : "",
@@ -235,6 +241,7 @@ Item {
                 spacing: 10
                 Icon { shape: "download"; size: 16; color: Theme.accentText }
                 Text {
+                    textFormat: Text.PlainText
                     id: auraText
                     Layout.fillWidth: true
                     text: (backend.auraCount === 1 ? "1 WeakAuras update is" : backend.auraCount + " WeakAuras updates are")
@@ -372,6 +379,7 @@ Item {
                             onRequested: (on) => backend.setListedOnly(on)
                         }
                         Text {
+                            textFormat: Text.PlainText
                             text: "Only addons listed for " + backend.clientLabel
                             color: Theme.text
                             font.pixelSize: Theme.body
@@ -379,6 +387,7 @@ Item {
                         }
                         Item { Layout.fillWidth: true }
                         Text {
+                            textFormat: Text.PlainText
                             visible: backend.hiddenResults > 0
                             text: backend.hiddenResults + (backend.hiddenResults === 1 ? " result hidden" : " results hidden")
                             color: Theme.sub
@@ -419,6 +428,7 @@ Item {
                                     Layout.fillWidth: true
                                     spacing: 8
                                     Text {
+                                        textFormat: Text.PlainText
                                         Layout.fillWidth: true
                                         text: "Shared setups"
                                         color: Theme.text
@@ -428,6 +438,7 @@ Item {
                                     Btn { text: "Share mine"; iconName: "link"; onClicked: backend.openShare() }
                                 }
                                 Text {
+                                    textFormat: Text.PlainText
                                     Layout.fillWidth: true
                                     Layout.bottomMargin: 10
                                     text: "Addon lists published by other players. Open one to see what is in it before installing."
@@ -457,6 +468,7 @@ Item {
                                         Layout.fillWidth: true
                                         spacing: 2
                                         Text {
+                                            textFormat: Text.PlainText
                                             Layout.fillWidth: true
                                             text: setup.modelData.name
                                             color: Theme.text
@@ -465,6 +477,7 @@ Item {
                                             elide: Text.ElideRight
                                         }
                                         Text {
+                                            textFormat: Text.PlainText
                                             Layout.fillWidth: true
                                             text: [setup.modelData.by ? "by " + setup.modelData.by : "", setup.modelData.game, setup.modelData.about].filter(s => s).join("  ·  ")
                                             visible: text !== ""
@@ -474,6 +487,7 @@ Item {
                                         }
                                     }
                                     Text {
+                                        textFormat: Text.PlainText
                                         text: (setup.modelData.have > 0 ? "you have " + setup.modelData.have + " of " : "") + setup.modelData.count + (setup.modelData.count === 1 ? " addon" : " addons")
                                         color: Theme.sub
                                         font.pixelSize: Theme.small
@@ -506,7 +520,7 @@ Item {
                             anchors.centerIn: parent
                             spacing: 10
                             Spinner { size: 18; anchors.verticalCenter: parent.verticalCenter }
-                            Text { text: "Searching"; color: Theme.sub; font.pixelSize: Theme.body; anchors.verticalCenter: parent.verticalCenter }
+                            Text { textFormat: Text.PlainText; text: "Searching"; color: Theme.sub; font.pixelSize: Theme.body; anchors.verticalCenter: parent.verticalCenter }
                         }
                     }
                 }
@@ -663,6 +677,7 @@ Item {
                 Layout.fillWidth: true
                 spacing: 8
                 Text {
+                    textFormat: Text.PlainText
                     Layout.fillWidth: true
                     text: prof.modelData.name + "  ·  " + prof.modelData.count + " addons on"
                     color: Theme.text
@@ -721,6 +736,7 @@ Item {
         Repeater {
             model: setupDialog.change.added
             Text {
+                textFormat: Text.PlainText
                 required property string modelData
                 Layout.fillWidth: true
                 text: "+  " + modelData
@@ -732,6 +748,7 @@ Item {
         Repeater {
             model: setupDialog.change.removed
             Text {
+                textFormat: Text.PlainText
                 required property string modelData
                 Layout.fillWidth: true
                 text: "−  " + modelData
@@ -750,6 +767,7 @@ Item {
                 onRequested: (on) => setupDialog.removeToo = on
             }
             Text {
+                textFormat: Text.PlainText
                 Layout.fillWidth: true
                 text: "Also remove the dropped addons from " + backend.clientLabel
                 color: Theme.text

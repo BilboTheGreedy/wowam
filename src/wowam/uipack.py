@@ -99,8 +99,33 @@ def inspect(path):
         }
 
 
-def rename(text, src, dst):
+KEY = re.compile(r'^\s*\["((?:[^"\\]|\\.)*)"\] = (.*?),?\s*$')
+NAMED = {"profiles", "realm"}
+
+
+def _keys(text, names):
+    out = []
+    stack = []
+    for line in text.split("\n"):
+        bare = line.strip()
+        m = KEY.match(line)
+        parent = stack[-1] if stack else ""
+        if m and parent in NAMED and m.group(1) in names:
+            line = line.replace(f'["{m.group(1)}"]', f'["{names[m.group(1)]}"]', 1)
+        elif m and parent == "profileKeys" and m.group(2)[1:-1] in names and m.group(2).startswith('"'):
+            head, _, tail = line.rpartition(m.group(2))
+            line = f'{head}"{names[m.group(2)[1:-1]]}"{tail}'
+        if bare.endswith("{"):
+            stack.append(m.group(1) if m else "")
+        elif bare.startswith("}") and stack:
+            stack.pop()
+        out.append(line)
+    return "\n".join(out)
+
+
+def rename(text, src, dst, bare=()):
     pairs = []
+    names = {}
     s_realm, s_char = src[1], src[2]
     d_realm, d_char = dst[1], dst[2]
     if s_char and s_realm:
@@ -111,22 +136,27 @@ def rename(text, src, dst):
             (f"{s_char}-{flat_s}", f"{d_char}-{flat_d}"),
             (f"{s_char} - {flat_s}", f"{d_char} - {flat_d}"),
         ]
-    if len(s_char) >= 4:
-        pairs.append((f'"{s_char}"', f'"{d_char}"'))
-    if len(s_realm) >= 4:
-        pairs.append((f'"{s_realm}"', f'"{d_realm}"'))
+    for old, new, mark in ((s_char, d_char, CHAR), (s_realm, d_realm, REALM)):
+        if not old or old == new:
+            continue
+        if old == mark or (old in bare and len(old) >= 4):
+            pairs.append((f'"{old}"', f'"{new}"'))
+        else:
+            names[old] = new
     for old, new in pairs:
         if old != new:
             text = text.replace(old, new)
+    if names:
+        text = _keys(text, names)
     return text
 
 
-def _write(zf, info, target, src, dst):
+def _write(zf, info, target, src, dst, bare=()):
     target.parent.mkdir(parents=True, exist_ok=True)
     data = zf.read(info)
     if target.suffix.lower() == ".lua":
         try:
-            data = rename(data.decode("utf-8"), src, dst).encode("utf-8")
+            data = rename(data.decode("utf-8"), src, dst, bare).encode("utf-8")
         except UnicodeDecodeError:
             pass
     target.write_bytes(data)
@@ -187,7 +217,7 @@ def copy_char(client, src, dst, keep=7):
     target.mkdir(parents=True, exist_ok=True)
     for path in files:
         try:
-            (target / path.name).write_text(rename(path.read_text(encoding="utf-8"), src, dst), encoding="utf-8")
+            (target / path.name).write_text(rename(path.read_text(encoding="utf-8"), src, dst, src[2:]), encoding="utf-8")
             done += 1
         except (OSError, UnicodeDecodeError):
             pass
@@ -240,7 +270,7 @@ def apply(client, path, src, dst, keep=7, only=None):
                     _write(zf, info, account / "SavedVariables" / rest[-1], src, dst)
                     settings += 1
                 elif len(rest) == 5 and (rest[1], rest[2]) == (src[1], src[2]):
-                    _write(zf, info, account / dst[1] / dst[2] / "SavedVariables" / rest[-1], src, dst)
+                    _write(zf, info, account / dst[1] / dst[2] / "SavedVariables" / rest[-1], src, dst, src[2:])
                     settings += 1
                 continue
             rest = _addon(parts)
@@ -264,7 +294,7 @@ def apply(client, path, src, dst, keep=7, only=None):
 
 
 def scrub(text, src, others=()):
-    text = rename(text, src, (ACCOUNT, REALM, CHAR))
+    text = rename(text, src, (ACCOUNT, REALM, CHAR), src[1:])
     realms = {src[1]: REALM}
     accounts = {src[0]}
     for n, other in enumerate(others, 1):
@@ -272,7 +302,7 @@ def scrub(text, src, others=()):
             continue
         accounts.add(other[0])
         realm = realms.setdefault(other[1], f"Realm{len(realms) + 1}")
-        text = rename(text, other, ("", realm, f"Alt{n}"))
+        text = rename(text, other, ("", realm, f"Alt{n}"), other[1:])
     for name in sorted(accounts, key=len, reverse=True):
         if len(name) >= 4:
             text = text.replace(name, ACCOUNT)

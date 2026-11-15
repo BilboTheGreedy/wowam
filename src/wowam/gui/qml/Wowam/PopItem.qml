@@ -21,6 +21,7 @@ MenuItem {
             color: root.danger ? Theme.err : root.checked ? Theme.accentText : Theme.sub
         }
         Text {
+            textFormat: Text.PlainText
             x: 36
             anchors.verticalCenter: parent.verticalCenter
             text: root.text

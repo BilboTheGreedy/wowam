@@ -41,7 +41,7 @@ Button {
         visible: root.tip !== "" && root.hovered
         delay: 600
         text: root.tip
-        contentItem: Text { text: root.tip; color: Theme.text; font.pixelSize: Theme.small }
+        contentItem: Text { textFormat: Text.PlainText; text: root.tip; color: Theme.text; font.pixelSize: Theme.small }
         background: Rectangle { color: Theme.raised; radius: 6; border.color: Theme.line }
     }
 }

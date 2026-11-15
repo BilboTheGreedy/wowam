@@ -11,10 +11,11 @@ from PySide6.QtCore import (
     Property, QAbstractListModel, QEvent, QModelIndex, QObject, QStandardPaths, Qt, QTimer, QUrl, Signal, Slot,
 )
 from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon, QImage
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from .. import __version__, about, auras, backup, desktop, health, history, http, launch, lists, selfupdate, sources, uipack
+from .. import __version__, about, auras, backup, desktop, health, history, http, launch, lists, paths, selfupdate, sources, uipack
 from ..cli import update_client
 from ..clients import discover
 from ..config import Config
@@ -55,15 +56,15 @@ def local_images(text, base, cap=680, limit=16):
         if full in seen:
             return seen[full]
         if len(seen) >= limit:
-            return full
-        seen[full] = full
+            return ""
+        seen[full] = ""
         try:
             data = http.get_bytes(quote(full, safe=":/?&=%#+,;@~!$'()*[]"), 6_000_000, timeout=15)
         except (http.HttpError, ValueError):
-            return full
+            return ""
         img = QImage.fromData(data)
         if img.isNull():
-            return full
+            return ""
         if img.width() > cap:
             img = img.scaledToWidth(cap, Qt.SmoothTransformation)
         path = http.cache_dir() / "img" / (hashlib.sha1(full.encode()).hexdigest() + ".png")
@@ -74,6 +75,10 @@ def local_images(text, base, cap=680, limit=16):
 
     text = IMG_MD.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
     return IMG_HTML.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
+
+
+def no_images(text):
+    return IMG_HTML.sub(lambda m: m.group(1) + m.group(3), IMG_MD.sub(lambda m: m.group(1) + m.group(3), text))
 
 
 def human_size(n):
@@ -252,10 +257,13 @@ class Backend(QObject):
         self._bg(desktop.refresh_launcher)
         if self.cfg.get("check_updates"):
             self._bg(selfupdate.check, self._update_found)
-        if self._uri:
-            ref = sources.parse_ref(self._uri)
-            if ref:
-                self.showBrowse.emit(ref)
+        self.open_uri(self._uri)
+
+    def open_uri(self, uri):
+        ref = sources.parse_ref(uri) if uri else None
+        if ref:
+            self.showBrowse.emit(ref)
+        return bool(ref)
 
     def _update_found(self, info, err):
         self._update = info
@@ -862,7 +870,7 @@ class Backend(QObject):
             return {"title": "", "text": "", "markdown": False}
         return {
             "title": f"{e.addon.name} {e.release.version}",
-            "text": e.release.notes,
+            "text": no_images(e.release.notes),
             "markdown": e.addon.ref.startswith("gh:"),
         }
 
@@ -2119,11 +2127,47 @@ class UrlFilter(QObject):
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.FileOpen:
-            ref = sources.parse_ref(event.url().toString())
-            if ref:
-                self.backend.showBrowse.emit(ref)
-                return True
+            return self.backend.open_uri(event.url().toString())
         return False
+
+
+def pipe_name():
+    return "wowam-" + hashlib.sha1(str(paths.config_dir()).encode()).hexdigest()[:12]
+
+
+def hand_over(uri):
+    sock = QLocalSocket()
+    sock.connectToServer(pipe_name())
+    if not sock.waitForConnected(500):
+        return False
+    sock.write((uri or "").encode() + b"\n")
+    sock.waitForBytesWritten(1000)
+    sock.disconnectFromServer()
+    return True
+
+
+class Door(QObject):
+    opened = Signal(str)
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.server = QLocalServer(self)
+        self.server.setSocketOptions(QLocalServer.UserAccessOption)
+        self.server.newConnection.connect(self.accept)
+        QLocalServer.removeServer(pipe_name())
+        self.server.listen(pipe_name())
+
+    def accept(self):
+        while self.server.hasPendingConnections():
+            sock = self.server.nextPendingConnection()
+            sock.readyRead.connect(lambda s=sock: self.read(s))
+            sock.disconnected.connect(sock.deleteLater)
+
+    def read(self, sock):
+        if not sock.canReadLine():
+            return
+        self.opened.emit(bytes(sock.readLine(2048).data()).decode("utf-8", "replace").strip())
+        sock.disconnectFromServer()
 
 
 class Tray(QObject):
@@ -2201,11 +2245,13 @@ def run(uri="", hidden=False):
     app.setApplicationDisplayName(desktop.FULL_NAME)
     app.setDesktopFileName("wowam")
     app.setWindowIcon(QIcon(str(desktop.icon_source())))
+    smoke = os.environ.get("WOWAM_SMOKE")
+    if not smoke and hand_over(uri):
+        return 0
     backend = Backend(uri)
     urls = UrlFilter(backend)
     app.installEventFilter(urls)
     engine = QQmlApplicationEngine()
-    smoke = os.environ.get("WOWAM_SMOKE")
     problems = []
     if smoke:
         engine.warnings.connect(lambda ws: problems.extend(w.toString() for w in ws))
@@ -2228,8 +2274,18 @@ def run(uri="", hidden=False):
     else:
         window.show()
     backend.start()
+
+    def knock(text):
+        backend.open_uri(text)
+        window.show()
+        window.raise_()
+        window.requestActivate()
+
     if smoke:
         QTimer.singleShot(4000, app.quit)
+    else:
+        door = Door(app)
+        door.opened.connect(knock)
     code = app.exec()
     if smoke:
         try:

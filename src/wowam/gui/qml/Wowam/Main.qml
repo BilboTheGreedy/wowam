@@ -65,6 +65,7 @@ ApplicationWindow {
                     spacing: 12
                     Icon { shape: "download"; size: 17; color: Theme.accentText }
                     Text {
+                        textFormat: Text.PlainText
                         Layout.fillWidth: true
                         text: backend.updating
                             ? "Downloading version " + backend.updateVersion + "  ·  " + Math.round(backend.updateProgress * 100) + "%"
@@ -246,6 +247,7 @@ ApplicationWindow {
                 border.width: opt.on ? 5 : 1.5
             }
             Text {
+                textFormat: Text.PlainText
                 Layout.fillWidth: true
                 text: opt.modelData.label
                 color: Theme.text
@@ -256,6 +258,7 @@ ApplicationWindow {
     }
 
     component Caption: Text {
+        textFormat: Text.PlainText
         Layout.fillWidth: true
         Layout.topMargin: 4
         color: Theme.sub
@@ -336,6 +339,7 @@ ApplicationWindow {
                     Icon { anchors.centerIn: parent; visible: take.on; shape: "check"; size: 12; color: Theme.onAccent }
                 }
                 Text {
+                    textFormat: Text.PlainText
                     Layout.fillWidth: true
                     text: take.modelData
                     color: take.on ? Theme.text : Theme.sub
@@ -343,6 +347,7 @@ ApplicationWindow {
                     elide: Text.ElideRight
                 }
                 Text {
+                    textFormat: Text.PlainText
                     visible: take.on && packDialog.mine.indexOf(take.modelData.toLowerCase()) >= 0
                     text: "replaces yours"
                     color: Theme.warn
@@ -351,6 +356,7 @@ ApplicationWindow {
             }
         }
         Text {
+            textFormat: Text.PlainText
             visible: packDialog.pack.other
             Layout.fillWidth: true
             text: "This pack was made on " + packDialog.pack.game + ". Some of its addons or settings may not fit " + backend.clientLabel + "."
@@ -359,6 +365,7 @@ ApplicationWindow {
             wrapMode: Text.WordWrap
         }
         Text {
+            textFormat: Text.PlainText
             Layout.fillWidth: true
             text: packDialog.pack.targets.length === 0
                 ? "No characters found in " + backend.clientLabel + ". Log in to the game with your character once, then import again."
@@ -509,6 +516,7 @@ ApplicationWindow {
                     Icon { anchors.centerIn: parent; visible: inc.on; shape: "check"; size: 12; color: Theme.onAccent }
                 }
                 Text {
+                    textFormat: Text.PlainText
                     Layout.fillWidth: true
                     text: inc.modelData.name
                     color: inc.on ? Theme.text : Theme.sub
@@ -518,6 +526,7 @@ ApplicationWindow {
             }
         }
         Text {
+            textFormat: Text.PlainText
             Layout.fillWidth: true
             text: "Your account, character, realm and alts are replaced with placeholders. Names of friends and guild members cannot be found automatically, so leave out addons that keep that kind of data, such as chat, friend list or damage history addons."
             color: Theme.sub
@@ -619,6 +628,7 @@ ApplicationWindow {
                     Icon { anchors.centerIn: parent; visible: pick.on; shape: "check"; size: 12; color: Theme.onAccent }
                 }
                 Text {
+                    textFormat: Text.PlainText
                     Layout.fillWidth: true
                     text: pick.modelData.name
                     color: pick.on ? Theme.text : Theme.sub
@@ -672,6 +682,7 @@ ApplicationWindow {
                 width: ListView.view.width - 12
                 spacing: 8
                 Text {
+                    textFormat: Text.PlainText
                     Layout.fillWidth: true
                     text: refRow.modelData.ref
                     color: refRow.modelData.have ? Theme.sub : Theme.text
@@ -679,6 +690,7 @@ ApplicationWindow {
                     elide: Text.ElideMiddle
                 }
                 Text {
+                    textFormat: Text.PlainText
                     visible: refRow.modelData.have
                     text: "installed"
                     color: Theme.sub
@@ -698,6 +710,7 @@ ApplicationWindow {
                 onRequested: (on) => listDialog.wantFollow = on
             }
             Text {
+                textFormat: Text.PlainText
                 Layout.fillWidth: true
                 text: listDialog.item.following ? "You follow this setup." : "Follow this setup, and tell me when addons are added to it or dropped"
                 color: Theme.sub
@@ -741,6 +754,7 @@ ApplicationWindow {
             spacing: 10
             Icon { shape: toast.isError ? "alert" : "check"; size: 17; color: toast.isError ? Theme.err : Theme.ok }
             Text {
+                textFormat: Text.PlainText
                 id: toastText
                 Layout.fillWidth: true
                 text: toast.message

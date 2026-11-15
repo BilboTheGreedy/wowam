@@ -23,8 +23,9 @@ Item {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 2
-            Text { text: parent.parent.label; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Text { textFormat: Text.PlainText; text: parent.parent.label; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium; wrapMode: Text.WordWrap; Layout.fillWidth: true }
             Text {
+                textFormat: Text.PlainText
                 visible: text !== ""
                 text: parent.parent.detail
                 color: Theme.sub
@@ -45,7 +46,7 @@ Item {
         property string settingKey: ""
         Layout.fillWidth: true
         spacing: 6
-        Text { text: secret.label; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium }
+        Text { textFormat: Text.PlainText; text: secret.label; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium }
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -61,7 +62,7 @@ Item {
             Btn { id: reveal; checkable: true; kind: "ghost"; text: checked ? "Hide" : "Show" }
             Btn { text: "Save"; enabled: input.text !== secret.value; onClicked: backend.setText(secret.settingKey, input.text) }
         }
-        Text { text: secret.detail; color: Theme.sub; font.pixelSize: Theme.small; wrapMode: Text.WordWrap; lineHeight: 1.2; Layout.fillWidth: true }
+        Text { textFormat: Text.PlainText; text: secret.detail; color: Theme.sub; font.pixelSize: Theme.small; wrapMode: Text.WordWrap; lineHeight: 1.2; Layout.fillWidth: true }
     }
 
     Flickable {
@@ -81,6 +82,7 @@ Item {
             spacing: 14
 
             Text {
+                textFormat: Text.PlainText
                 text: "Settings"
                 color: Theme.text
                 font.pixelSize: Theme.title
@@ -158,12 +160,13 @@ Item {
                         required property var modelData
                         Layout.fillWidth: true
                         spacing: 10
-                        Text { text: historyRow.modelData.name; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium; elide: Text.ElideRight; Layout.preferredWidth: 180 }
-                        Text { text: historyRow.modelData.change; color: Theme.sub; font.pixelSize: Theme.small; elide: Text.ElideMiddle; Layout.fillWidth: true }
-                        Text { text: historyRow.modelData.where + "  ·  " + historyRow.modelData.when; color: Theme.faint; font.pixelSize: Theme.small }
+                        Text { textFormat: Text.PlainText; text: historyRow.modelData.name; color: Theme.text; font.pixelSize: Theme.body; font.weight: Font.Medium; elide: Text.ElideRight; Layout.preferredWidth: 180 }
+                        Text { textFormat: Text.PlainText; text: historyRow.modelData.change; color: Theme.sub; font.pixelSize: Theme.small; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                        Text { textFormat: Text.PlainText; text: historyRow.modelData.where + "  ·  " + historyRow.modelData.when; color: Theme.faint; font.pixelSize: Theme.small }
                     }
                 }
                 Text {
+                    textFormat: Text.PlainText
                     visible: backend.history.length === 0
                     text: "Nothing yet."
                     color: Theme.sub
@@ -181,7 +184,7 @@ Item {
                 Line {
                     label: "Backups to keep"
                     Btn { text: "−"; implicitWidth: 34; enabled: backend.backupKeep > 1; Accessible.name: "Keep fewer backups"; onClicked: backend.setBackupKeep(backend.backupKeep - 1) }
-                    Text { text: backend.backupKeep; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; horizontalAlignment: Text.AlignHCenter; Layout.preferredWidth: 26 }
+                    Text { textFormat: Text.PlainText; text: backend.backupKeep; color: Theme.text; font.pixelSize: 14; font.weight: Font.DemiBold; horizontalAlignment: Text.AlignHCenter; Layout.preferredWidth: 26 }
                     Btn { text: "+"; implicitWidth: 34; enabled: backend.backupKeep < 50; Accessible.name: "Keep more backups"; onClicked: backend.setBackupKeep(backend.backupKeep + 1) }
                 }
                 Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
@@ -193,12 +196,13 @@ Item {
                         Layout.fillWidth: true
                         spacing: 10
                         Icon { shape: "archive"; size: 16 }
-                        Text { text: backupRow.modelData.when; color: Theme.text; font.pixelSize: Theme.body }
-                        Text { text: backupRow.modelData.size; color: Theme.sub; font.pixelSize: Theme.small; Layout.fillWidth: true }
+                        Text { textFormat: Text.PlainText; text: backupRow.modelData.when; color: Theme.text; font.pixelSize: Theme.body }
+                        Text { textFormat: Text.PlainText; text: backupRow.modelData.size; color: Theme.sub; font.pixelSize: Theme.small; Layout.fillWidth: true }
                         Btn { text: "Restore"; kind: "ghost"; onClicked: restoreDialog.show(backupRow.modelData) }
                     }
                 }
                 Text {
+                    textFormat: Text.PlainText
                     visible: backend.backups.length === 0
                     text: "No backups yet."
                     color: Theme.sub
@@ -267,6 +271,7 @@ Item {
                         Layout.fillWidth: true
                         spacing: 8
                         Text {
+                            textFormat: Text.PlainText
                             Layout.fillWidth: true
                             text: "Following " + followRow.modelData.name + "  ·  " + followRow.modelData.count + " addons"
                             color: Theme.text
@@ -300,8 +305,8 @@ Item {
                         id: use
                         required property var modelData
                         Layout.fillWidth: true
-                        Text { Layout.fillWidth: true; text: use.modelData.label; color: Theme.text; font.pixelSize: Theme.body; elide: Text.ElideRight }
-                        Text { text: use.modelData.size; color: Theme.sub; font.pixelSize: Theme.body }
+                        Text { textFormat: Text.PlainText; Layout.fillWidth: true; text: use.modelData.label; color: Theme.text; font.pixelSize: Theme.body; elide: Text.ElideRight }
+                        Text { textFormat: Text.PlainText; text: use.modelData.size; color: Theme.sub; font.pixelSize: Theme.body }
                     }
                 }
                 Btn { text: backend.usage.length > 0 ? "Measure again" : "Measure"; enabled: backend.hasClient; onClicked: backend.measure() }
@@ -311,6 +316,7 @@ Item {
                 title: "Leftover settings" + (backend.hasClient ? "  ·  " + backend.clientLabel : "")
                 hint: "Removed addons leave their saved settings behind. Finding them changes nothing; deleting makes a backup first."
                 Text {
+                    textFormat: Text.PlainText
                     visible: backend.orphansScanned
                     text: backend.orphanSummary
                     color: Theme.text
@@ -337,7 +343,7 @@ Item {
                         Layout.fillWidth: true
                         spacing: 10
                         Icon { shape: "folder"; size: 16 }
-                        Text { text: pathRow.modelData; color: Theme.text; font.pixelSize: Theme.body; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                        Text { textFormat: Text.PlainText; text: pathRow.modelData; color: Theme.text; font.pixelSize: Theme.body; elide: Text.ElideMiddle; Layout.fillWidth: true }
                         Btn { text: "Remove"; kind: "ghost"; onClicked: backend.removeFolder(pathRow.modelData) }
                     }
                 }
@@ -345,6 +351,7 @@ Item {
             }
 
             Text {
+                textFormat: Text.PlainText
                 text: backend.fullName + " " + backend.version
                 color: Theme.faint
                 font.pixelSize: Theme.small

@@ -34,6 +34,7 @@ Button {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+                textFormat: Text.PlainText
                 visible: root.text !== ""
                 text: root.text
                 font: root.font
