@@ -136,6 +136,10 @@ class DoorTests(unittest.TestCase):
                     second.kill()
                 door.server.close()
                 self.assertEqual(second.wait(), 0)
+                deaf = gui.QLocalServer()
+                deaf.listen(gui.pipe_name())
+                self.assertFalse(gui.hand_over("", 200))
+                deaf.close()
                 self.assertEqual(got, ["gh:a/b"])
 
 

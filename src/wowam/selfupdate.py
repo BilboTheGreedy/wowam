@@ -111,4 +111,4 @@ def install(info, progress=None, relaunch=True):
     exe = Path(sys.executable).resolve()
     swap(target, exe.parent, exe.name)
     if relaunch:
-        subprocess.Popen([str(exe)], start_new_session=True, close_fds=True)
+        subprocess.Popen([str(exe)], env={**os.environ, "WOWAM_FRESH": "1"}, start_new_session=True, close_fds=True)

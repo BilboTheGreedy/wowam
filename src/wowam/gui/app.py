@@ -2142,10 +2142,9 @@ def hand_over(uri, wait=2000):
         return False
     sock.write((uri or "").encode() + b"\n")
     sock.waitForBytesWritten(1000)
-    if wait:
-        sock.waitForReadyRead(wait)
+    heard = sock.waitForReadyRead(wait)
     sock.disconnectFromServer()
-    return True
+    return heard
 
 
 class Door(QObject):
@@ -2260,7 +2259,8 @@ def run(uri="", hidden=False):
     app.setDesktopFileName("wowam")
     app.setWindowIcon(QIcon(str(desktop.icon_source())))
     smoke = os.environ.get("WOWAM_SMOKE")
-    if not smoke and hand_over(uri):
+    fresh = os.environ.pop("WOWAM_FRESH", "")
+    if not smoke and not fresh and hand_over(uri):
         return 0
     backend = Backend(uri)
     urls = UrlFilter(backend)
@@ -2295,12 +2295,15 @@ def run(uri="", hidden=False):
         window.raise_()
         window.requestActivate()
 
+    door = None
     if smoke:
         QTimer.singleShot(4000, app.quit)
     else:
         door = Door(app)
         door.opened.connect(knock)
     code = app.exec()
+    if door:
+        door.server.close()
     if smoke:
         try:
             http.final_url("https://github.com/")
