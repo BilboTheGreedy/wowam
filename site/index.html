@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wowam - World of Warcraft addon manager for Linux, Windows and macOS</title>
+<meta name="description" content="A free World of Warcraft addon manager with a real GUI for Linux, Windows and macOS. Share a whole addon setup with one link. Retail, Classic and Forever. No ads, no account, no tracking.">
+<meta property="og:title" content="wowam - World of Warcraft addon manager">
+<meta property="og:description" content="Share a whole addon setup with one link. Free, for Linux, Windows and macOS.">
+<meta property="og:image" content="https://bilbothegreedy.github.io/wowam/img/installed.png">
+<meta property="og:url" content="https://bilbothegreedy.github.io/wowam/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="img/wowam.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/marcellus.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="./">
+    <img src="img/wowam.svg" width="36" height="36" alt="">
+    <span>wowam</span>
+  </a>
+  <nav>
+    <a href="#install">Install</a>
+    <a href="https://github.com/BilboTheGreedy/wowam/blob/main/docs/guide.md">Guide</a>
+    <a href="https://github.com/BilboTheGreedy/wowam">GitHub</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <h1>Share your whole addon setup with one link</h1>
+  <p class="lead">wowam is a free addon manager for World of Warcraft on Linux, Windows and macOS. It finds your installs, keeps your addons up to date and lets a guild or raid team stay on the same ones. Retail, Classic and Forever.</p>
+
+  <div class="get">
+    <a class="btn" data-os="windows" href="https://github.com/BilboTheGreedy/wowam/releases/latest/download/wowam-setup.exe">Download for Windows</a>
+    <a class="btn" data-os="mac" href="https://github.com/BilboTheGreedy/wowam/releases/latest/download/wowam-macos.zip">Download for macOS</a>
+    <a class="btn" data-os="linux" href="#install">Install on Linux</a>
+  </div>
+  <p class="terms">No ads, no account, no tracking. MIT license.</p>
+
+  <img class="shot main" src="img/installed.png" width="1120" height="740" alt="The Installed tab listing seven addons for a Retail install, two of them with updates ready">
+</section>
+
+<section class="row">
+  <div class="words">
+    <h2>Install somebody's setup in one click</h2>
+    <p>Shared setups are listed in Browse. Open one to see what is in it, then install the lot. Or paste a link a friend sent you into the search box.</p>
+    <p>Follow a setup and the app tells you when its author adds or drops an addon.</p>
+  </div>
+  <img class="shot" src="img/setup-preview.png" width="1120" height="740" loading="lazy" alt="A shared setup opened in the app, showing the addons it contains before installing">
+</section>
+
+<section class="row flip">
+  <div class="words">
+    <h2>Share yours</h2>
+    <p>Click Share mine, give the setup a name and pick the addons. The app copies a link for you to pass around. Share again later and the same link is updated.</p>
+    <p>A setup is just a text file, so you can also write one by hand:</p>
+<pre><code><span class="c"># name: Raid basics</span>
+<span class="c"># by: yourname</span>
+<span class="c"># for: Retail</span>
+<span class="c"># about: boss mods and a damage meter</span>
+gh:BigWigsMods/BigWigs
+https://github.com/WeakAuras/WeakAuras2
+wowi:12345</code></pre>
+  </div>
+  <img class="shot" src="img/share.png" width="1120" height="740" loading="lazy" alt="The share dialog, with a name field and a checklist of the addons to include">
+</section>
+
+<section class="row">
+  <div class="words">
+    <h2>Updates that leave your settings alone</h2>
+    <p>The app only changes the AddOns folder, and it backs up your settings before it updates anything. Pin an addon to a version, read the changelog, or go back to the previous one.</p>
+    <p>It can update in the background, sit in the tray and keep your WeakAuras from wago.io current too.</p>
+  </div>
+  <img class="shot" src="img/settings.png" width="1120" height="740" loading="lazy" alt="The Settings page with switches for start at login, background updates and WeakAuras updates">
+</section>
+
+<section class="all">
+  <h2>Everything it does</h2>
+  <ul>
+    <li>Finds your WoW installs on its own, also under Lutris, Steam and Wine</li>
+    <li>Installs and updates addons from GitHub, WoWInterface and Tukui with no account or key</li>
+    <li>Shows an addon's description and screenshots before you install it</li>
+    <li>Installs a downloaded zip when you drop it onto the window</li>
+    <li>Imports a whole interface pack, addons and their settings, onto your own character</li>
+    <li>Copies your interface from one character to another</li>
+    <li>Profiles to switch between sets of addons, for example raid and levelling</li>
+    <li>Shows which addon the game reported errors for</li>
+    <li>Wago Addons and CurseForge when you add your own key</li>
+    <li>Updates itself</li>
+  </ul>
+</section>
+
+<section class="install" id="install">
+  <h2>Install</h2>
+  <div class="os" data-os="windows">
+    <h3>Windows</h3>
+    <p>Download <a href="https://github.com/BilboTheGreedy/wowam/releases/latest/download/wowam-setup.exe">wowam-setup.exe</a> and run it. Windows may warn that the installer is not signed. Choose "More info" and then "Run anyway".</p>
+  </div>
+  <div class="os" data-os="linux">
+    <h3>Linux</h3>
+    <p>Run this in a terminal:</p>
+    <div class="cmd">
+      <code id="cmd">curl -fsSL https://raw.githubusercontent.com/BilboTheGreedy/wowam/main/install.sh | sh</code>
+      <button type="button" id="copy">Copy</button>
+    </div>
+  </div>
+  <div class="os" data-os="mac">
+    <h3>macOS</h3>
+    <p>Download <a href="https://github.com/BilboTheGreedy/wowam/releases/latest/download/wowam-macos.zip">wowam-macos.zip</a>, unzip it and move the app to Applications. The first time, right click it and choose Open.</p>
+  </div>
+  <p class="older">Older versions are on the <a href="https://github.com/BilboTheGreedy/wowam/releases">releases page</a>.</p>
+</section>
+
+<section class="faq">
+  <h2>Questions</h2>
+  <dl>
+    <dt>Where do the addons come from?</dt>
+    <dd>GitHub, WoWInterface and Tukui work out of the box. Wago Addons and CurseForge work when you add your own key in Settings.</dd>
+    <dt>Does it touch my settings?</dt>
+    <dd>It only changes the AddOns folder. Before an update it makes a backup of the WTF folder, where the game keeps your settings.</dd>
+    <dt>An addon I want is only on CurseForge.</dt>
+    <dd>Download the zip in your browser and drop it onto the window. If the author also has it on GitHub, paste that link into Browse instead and it will get updates.</dd>
+    <dt>Something is broken.</dt>
+    <dd>Open an <a href="https://github.com/BilboTheGreedy/wowam/issues">issue</a> on GitHub.</dd>
+  </dl>
+</section>
+
+</main>
+
+<footer>
+  <p><a href="https://github.com/BilboTheGreedy/wowam/blob/main/docs/guide.md">Guide</a> <a href="https://github.com/BilboTheGreedy/wowam">Source</a> <a href="https://github.com/BilboTheGreedy/wowam/issues">Issues</a> <a href="https://github.com/BilboTheGreedy/wowam-lists">Public setups</a></p>
+  <p class="small">World of Warcraft is a trademark of Blizzard Entertainment. This project is not affiliated with or endorsed by Blizzard.</p>
+</footer>
+
+<script>
+(function () {
+  var p = (navigator.userAgentData && navigator.userAgentData.platform || navigator.platform || "").toLowerCase();
+  var ua = navigator.userAgent.toLowerCase();
+  var os = "";
+  if (/android|iphone|ipad/.test(ua)) os = "";
+  else if (p.indexOf("win") === 0) os = "windows";
+  else if (p.indexOf("mac") === 0) os = "mac";
+  else if (p.indexOf("linux") >= 0 || ua.indexOf("x11") >= 0) os = "linux";
+  if (os) document.documentElement.setAttribute("data-os", os);
+
+  var btn = document.getElementById("copy");
+  btn.addEventListener("click", function () {
+    var text = document.getElementById("cmd").textContent;
+    navigator.clipboard.writeText(text).then(function () {
+      btn.textContent = "Copied";
+      setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -2,6 +2,8 @@
 
 A free addon manager with a real GUI for Linux, Windows and macOS. Works with Retail, Classic and Forever.
 
+Website: https://bilbothegreedy.github.io/wowam/
+
 ![installed addons](docs/installed.png)
 
 - finds your WoW installs on its own, also under Lutris, Steam and Wine
