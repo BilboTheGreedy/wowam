@@ -184,6 +184,17 @@ class InstallerTests(Base):
         with self.assertRaises(installer.InstallError):
             installer.install_zip(z, self.addons)
 
+    def test_dot_names(self):
+        self.add_folder("Keep", "x", {"a.lua": "1"})
+        (self.addons.parent / "other.txt").write_text("x")
+        for n, bad in enumerate(("..-mainline.toc", ".-mainline.toc", "..._classic.toc", ".hidden.toc")):
+            z = make_zip(self.home / f"dot{n}.zip", {f"Foo/{bad}": "x", "Foo/a.lua": "1"})
+            with self.assertRaises(installer.InstallError):
+                installer.install_zip(z, self.addons)
+            self.assertTrue((self.addons / "Keep/a.lua").exists())
+            self.assertTrue((self.addons.parent / "other.txt").exists())
+            self.assertEqual(sorted(p.name for p in self.addons.iterdir()), ["Keep"])
+
     def test_replaces_old(self):
         self.add_folder("Foo", "old", {"stale.lua": "1"})
         z = make_zip(self.home / "f.zip", {"Foo/Foo.toc": "new"})
@@ -525,6 +536,33 @@ class PublishTests(unittest.TestCase):
         with mock.patch.object(sources, "_cli_token", return_value=""), mock.patch.dict(sources._memo, clear=True):
             with self.assertRaises(sources.SourceError):
                 lists.publish(Cfg(), ["gh:a/b"], "x")
+
+
+class RedirectTests(unittest.TestCase):
+    def test_keys_stay_home(self):
+        from wowam import http
+
+        def follow(target):
+            req = http.urllib.request.Request(
+                "https://api.example.com/file", headers={"Authorization": "Bearer t", "x-api-key": "k", "Accept": "a"}
+            )
+            return http.Redirect().redirect_request(req, None, 302, "Found", {}, target)
+
+        away = {k.lower() for k in follow("https://cdn.other.net/file").headers}
+        self.assertEqual(away, {"accept"})
+        same = {k.lower() for k in follow("https://api.example.com/other").headers}
+        self.assertEqual(same, {"authorization", "x-api-key", "accept"})
+        with self.assertRaises(http.urllib.error.HTTPError):
+            follow("http://api.example.com/file")
+
+
+class AuraIdTests(unittest.TestCase):
+    def test_bad_id(self):
+        calls = []
+        with mock.patch.object(auras.http, "download", lambda *a, **k: calls.append(a)):
+            self.assertEqual(auras.encoded({"_id": "../../x", "version": 2}), "")
+            self.assertEqual(auras.encoded({"_id": "abc", "version": "2/../y"}), "")
+        self.assertEqual(calls, [])
 
 
 class TidyTests(unittest.TestCase):

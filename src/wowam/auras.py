@@ -1,5 +1,6 @@
 import re
 import shutil
+from urllib.parse import quote as urlquote
 
 from . import http
 from .paths import cache_dir
@@ -27,7 +28,8 @@ def check(slugs):
     ids = sorted(slugs)
     for i in range(0, len(ids), 80):
         try:
-            data = http.get_json(f"{API}/check/weakauras?ids={','.join(ids[i:i + 80])}", max_age=600)
+            wanted = ",".join(urlquote(s, safe="") for s in ids[i:i + 80])
+            data = http.get_json(f"{API}/check/weakauras?ids={wanted}", max_age=600)
         except http.HttpError:
             continue
         for entry in data if isinstance(data, list) else []:
@@ -39,13 +41,20 @@ def check(slugs):
 
 
 def encoded(entry):
-    target = cache_dir() / "auras" / f"{entry['_id']}-{entry['version']}"
+    ident = str(entry.get("_id") or "")
+    try:
+        version = int(entry.get("version"))
+    except (TypeError, ValueError):
+        return ""
+    if not re.fullmatch(r"[\w-]+", ident):
+        return ""
+    target = cache_dir() / "auras" / f"{ident}-{version}"
     try:
         return target.read_text()
     except OSError:
         pass
     try:
-        http.download(f"{API}/raw/encoded?id={entry['_id']}", target)
+        http.download(f"{API}/raw/encoded?id={ident}", target)
         return target.read_text()
     except (http.HttpError, OSError):
         return ""

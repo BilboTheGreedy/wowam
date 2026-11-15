@@ -40,6 +40,24 @@ def _context():
 CONTEXT = _context()
 
 
+SECRET = ("authorization", "x-api-key")
+
+
+class Redirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        old, new = urllib.request.urlparse(req.full_url), urllib.request.urlparse(newurl)
+        if old.scheme == "https" and new.scheme != "https":
+            raise urllib.error.HTTPError(newurl, code, "redirect to an insecure address", headers, fp)
+        out = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if out is not None and old.netloc.lower() != new.netloc.lower():
+            for name in [k for k in out.headers if k.lower() in SECRET]:
+                del out.headers[name]
+        return out
+
+
+OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler(context=CONTEXT), Redirect)
+
+
 class HttpError(Exception):
     def __init__(self, status, message, headers=None):
         super().__init__(message)
@@ -55,7 +73,7 @@ def _cache_path(url, kind):
 def _request(url, headers=None, data=None, timeout=30):
     req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, **(headers or {})})
     try:
-        return urllib.request.urlopen(req, timeout=timeout, context=CONTEXT)
+        return OPENER.open(req, timeout=timeout)
     except urllib.error.HTTPError as e:
         raise HttpError(e.code, f"HTTP {e.code} from {urllib.request.urlparse(url).netloc}", dict(e.headers)) from e
     except (urllib.error.URLError, OSError) as e:
@@ -77,7 +95,7 @@ def send_json(url, payload, headers=None, method="POST", timeout=30):
     )
     host = urllib.request.urlparse(url).netloc
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=CONTEXT) as resp:
+        with OPENER.open(req, timeout=timeout) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         raise HttpError(e.code, f"HTTP {e.code} from {host}", dict(e.headers)) from e
