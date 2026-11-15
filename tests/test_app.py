@@ -3,6 +3,7 @@ import os
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -121,12 +122,16 @@ class DoorTests(unittest.TestCase):
                 door = gui.Door(qapp)
                 got = []
                 door.opened.connect(got.append)
-                self.assertTrue(gui.hand_over("gh:a/b", 0))
-                end = time.time() + 3
-                while not got and time.time() < end:
+                sent = []
+                second = threading.Thread(target=lambda: sent.append(gui.hand_over("gh:a/b")))
+                second.start()
+                end = time.time() + 5
+                while (not got or second.is_alive()) and time.time() < end:
                     qapp.processEvents()
                     time.sleep(0.01)
+                second.join(5)
                 door.server.close()
+                self.assertEqual(sent, [True])
                 self.assertEqual(got, ["gh:a/b"])
 
 
