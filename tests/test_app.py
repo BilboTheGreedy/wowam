@@ -121,7 +121,7 @@ class DoorTests(unittest.TestCase):
                 door = gui.Door(qapp)
                 got = []
                 door.opened.connect(got.append)
-                self.assertTrue(gui.hand_over("gh:a/b"))
+                self.assertTrue(gui.hand_over("gh:a/b", 0))
                 end = time.time() + 3
                 while not got and time.time() < end:
                     qapp.processEvents()

@@ -2135,13 +2135,15 @@ def pipe_name():
     return "wowam-" + hashlib.sha1(str(paths.config_dir()).encode()).hexdigest()[:12]
 
 
-def hand_over(uri):
+def hand_over(uri, wait=2000):
     sock = QLocalSocket()
     sock.connectToServer(pipe_name())
     if not sock.waitForConnected(500):
         return False
     sock.write((uri or "").encode() + b"\n")
     sock.waitForBytesWritten(1000)
+    if wait:
+        sock.waitForReadyRead(wait)
     sock.disconnectFromServer()
     return True
 
@@ -2161,13 +2163,21 @@ class Door(QObject):
         while self.server.hasPendingConnections():
             sock = self.server.nextPendingConnection()
             sock.readyRead.connect(lambda s=sock: self.read(s))
-            sock.disconnected.connect(sock.deleteLater)
+            sock.disconnected.connect(lambda s=sock: self.gone(s))
+            self.read(sock)
 
     def read(self, sock):
-        if not sock.canReadLine():
+        if sock.property("seen") or not sock.canReadLine():
             return
+        sock.setProperty("seen", True)
         self.opened.emit(bytes(sock.readLine(2048).data()).decode("utf-8", "replace").strip())
+        sock.write(b"ok\n")
+        sock.flush()
         sock.disconnectFromServer()
+
+    def gone(self, sock):
+        self.read(sock)
+        sock.deleteLater()
 
 
 class Tray(QObject):
