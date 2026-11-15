@@ -5,3 +5,4 @@ build/
 dist/
 src/wowam/data/cf.key
 site/img/
+site/guide.html

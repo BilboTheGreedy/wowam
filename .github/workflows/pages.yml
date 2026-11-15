@@ -6,6 +6,8 @@ on:
     paths:
       - site/**
       - docs/*.png
+      - docs/guide.md
+      - packaging/site.py
       - src/wowam/data/wowam.svg
       - .github/workflows/pages.yml
   workflow_dispatch:
@@ -27,9 +29,11 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          mkdir -p site/img
-          cp docs/*.png src/wowam/data/wowam.svg site/img/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install markdown
+      - run: python packaging/site.py
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
