@@ -4,8 +4,10 @@ import sys
 import tarfile
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest import mock
 
@@ -103,10 +105,64 @@ class PlainTextTests(unittest.TestCase):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from wowam.gui import app as gui
 
-        out = gui.no_images('a ![x](http://h/t.png) b <img src="http://h/t.png"> c')
-        self.assertNotIn("http://", out)
-        with mock.patch.object(gui.http, "get_bytes", side_effect=gui.http.HttpError(0, "no")):
-            self.assertNotIn("http://", gui.local_images("![x](http://h/t.png)", ""))
+        text = (
+            'a ![x](http://h/1.png) b <img src="http://h/2.png"> c <img width=3 src = http://h/3.png> '
+            "<table background='http://h/4.png'><tr><td style=\"background-image: url(http://h/5.png)\">x</td></tr></table>"
+            "<style>body { background: url(http://h/6.png) }</style><body background=http://h/7.png>"
+            "\n\n![ref][pic] ![pic]\n\n[pic]: http://h/8.png\n[site]: http://h/page\n"
+        )
+        out = gui.no_images(text)
+        for n in range(1, 8):
+            self.assertNotIn(f"http://h/{n}.png", out)
+        self.assertEqual(out.count("http://h/8.png"), 1)
+        self.assertIn("[site]: http://h/page", out)
+        self.assertIn("<table>", out)
+        self.assertNotIn("<img", out)
+        with mock.patch.object(gui.http, "get_bytes", side_effect=gui.http.HttpError(0, "no")) as get:
+            out = gui.local_images(text, "")
+        self.assertEqual(get.call_count, 4)
+        self.assertEqual(out.count("http://h/8.png"), 1)
+        for n in range(1, 8):
+            self.assertNotIn(f"http://h/{n}.png", out)
+
+
+@unittest.skipIf(QGuiApplication is None, "no PySide6")
+class OfflineTests(unittest.TestCase):
+    def test_markup_cannot_call_out(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        os.environ.setdefault("QT_QUICK_BACKEND", "software")
+        from wowam.gui import app as gui
+
+        hits = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                hits.append(self.path)
+                self.send_response(404)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        body = f"<div style=\"background-image: url({base}/a.png)\">x</div>"
+        qapp = QGuiApplication.instance() or QGuiApplication([])
+        engine = QQmlApplicationEngine()
+        offline = gui.NoNetwork()
+        engine.setNetworkAccessManagerFactory(offline)
+        engine.rootContext().setContextProperty("body", body)
+        engine.loadData(b"import QtQuick\nWindow { visible: true; Text { textFormat: Text.RichText; text: body } }")
+        self.assertTrue(engine.rootObjects())
+        end = time.time() + 1
+        while time.time() < end:
+            qapp.processEvents()
+            time.sleep(0.01)
+        del engine
+        server.shutdown()
+        server.server_close()
+        self.assertEqual(hits, [])
 
 
 @unittest.skipIf(QGuiApplication is None, "no PySide6")

@@ -11,8 +11,8 @@ from PySide6.QtCore import (
     Property, QAbstractListModel, QEvent, QModelIndex, QObject, QStandardPaths, Qt, QTimer, QUrl, Signal, Slot,
 )
 from PySide6.QtGui import QAction, QDesktopServices, QGuiApplication, QIcon, QImage
-from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtNetwork import QLocalServer, QLocalSocket, QNetworkAccessManager, QNetworkRequest
+from PySide6.QtQml import QQmlApplicationEngine, QQmlNetworkAccessManagerFactory
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from .. import __version__, about, auras, backup, desktop, health, history, http, launch, lists, paths, selfupdate, sources, uipack
@@ -42,7 +42,36 @@ BROWSE_ROLES = [
 
 
 IMG_MD = re.compile(r'(!\[[^\]]*\]\()\s*<?((?:[^()\s<>]|\([^()\s]*\))+)>?((?:\s+"[^"]*")?\s*\))')
-IMG_HTML = re.compile(r"""(<img\b[^>]*?\bsrc=["'])([^"']+)(["'])""", re.I)
+IMG_REF = re.compile(r"!\[([^\]]*)\]\[([^\]]*)\]|!\[([^\]]+)\](?![\[(])")
+REF_DEF = re.compile(r"^ {0,3}\[([^\]]+)\]:[ \t]*<?(\S+?)>?(?:[ \t].*)?$", re.M)
+TAG = re.compile(r"<[a-zA-Z][^<>]*>")
+IMG_TAG = re.compile(r"<img\b[^<>]*>", re.I)
+SRC = re.compile(r"""(\bsrc\s*=\s*)("[^"]*"|'[^']*'|[^\s>]+)""", re.I)
+BACKGROUND = re.compile(r"""\sbackground\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)""", re.I)
+CSS_URL = re.compile(r"url\s*\([^)]*\)", re.I)
+STYLE = re.compile(r"<(style|script)\b.*?(</\1\s*>|\Z)", re.I | re.S)
+
+
+def clean(text, local):
+    refs = {m.group(1).strip().lower(): m.group(2) for m in REF_DEF.finditer(text)}
+
+    def inline(m):
+        alt = m.group(1) if m.group(3) is None else m.group(3)
+        url = refs.get((m.group(2) or alt).strip().lower())
+        return f"![{alt}]({url})" if url else m.group(0)
+
+    def img(m):
+        found = SRC.search(m.group(0))
+        url = local(found.group(2).strip("\"'")) if found else ""
+        if not url:
+            return ""
+        return m.group(0)[:found.start()] + f'{found.group(1)}"{url}"' + m.group(0)[found.end():]
+
+    text = STYLE.sub("", text)
+    text = TAG.sub(lambda m: CSS_URL.sub("none", BACKGROUND.sub("", m.group(0))), text)
+    text = IMG_TAG.sub(img, text)
+    text = IMG_REF.sub(inline, text)
+    return IMG_MD.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
 
 
 def local_images(text, base, cap=680, limit=16):
@@ -51,7 +80,7 @@ def local_images(text, base, cap=680, limit=16):
     def local(url):
         full = urljoin(base, url) if base else url
         if not full.startswith(("https://", "http://")):
-            return url
+            return ""
         full = re.sub(r"^(https://github\.com/[^/]+/[^/]+)/blob/", r"\1/raw/", full)
         if full in seen:
             return seen[full]
@@ -73,12 +102,11 @@ def local_images(text, base, cap=680, limit=16):
             seen[full] = QUrl.fromLocalFile(str(path)).toString()
         return seen[full]
 
-    text = IMG_MD.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
-    return IMG_HTML.sub(lambda m: m.group(1) + local(m.group(2)) + m.group(3), text)
+    return clean(text, local)
 
 
 def no_images(text):
-    return IMG_HTML.sub(lambda m: m.group(1) + m.group(3), IMG_MD.sub(lambda m: m.group(1) + m.group(3), text))
+    return clean(text, lambda url: "")
 
 
 def human_size(n):
@@ -2131,6 +2159,16 @@ class UrlFilter(QObject):
         return False
 
 
+class Offline(QNetworkAccessManager):
+    def createRequest(self, op, request, data=None):
+        return super().createRequest(op, QNetworkRequest(QUrl()), data)
+
+
+class NoNetwork(QQmlNetworkAccessManagerFactory):
+    def create(self, parent):
+        return Offline(parent)
+
+
 def pipe_name():
     return "wowam-" + hashlib.sha1(str(paths.config_dir()).encode()).hexdigest()[:12]
 
@@ -2266,6 +2304,8 @@ def run(uri="", hidden=False):
     urls = UrlFilter(backend)
     app.installEventFilter(urls)
     engine = QQmlApplicationEngine()
+    offline = NoNetwork()
+    engine.setNetworkAccessManagerFactory(offline)
     problems = []
     if smoke:
         engine.warnings.connect(lambda ws: problems.extend(w.toString() for w in ws))
