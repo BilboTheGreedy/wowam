@@ -259,6 +259,30 @@ class ManagerTests(Base):
         self.assertEqual(self.mgr.list(), [])
         self.assertFalse((self.addons / "Foo").exists())
 
+    def test_no_takeover(self):
+        self.mgr.install("gh:me/foo")
+        self.files = {"Evil/Evil.toc": "## Version: 1\n", "foo/foo.toc": "## Version: 9\n"}
+        with self.assertRaises(sources.SourceError):
+            self.mgr.install("gh:evil/addon")
+        self.assertEqual(self.mgr.refs(), ["gh:me/foo"])
+        self.assertFalse((self.addons / "Evil").exists())
+        self.assertIn("2.0", (self.addons / "Foo/Foo.toc").read_text())
+        self.files = {"Evil/Evil.toc": "## Version: 1\n"}
+        self.mgr.install("gh:evil/addon")
+        self.assertEqual(self.mgr.refs(), ["gh:evil/addon", "gh:me/foo"])
+
+    def test_damaged_backup(self):
+        sv = self.client.wtf_dir / "Account/ACC/SavedVariables"
+        (sv / "Foo.lua").write_text("one" * 500)
+        first = backup.create(self.client, 3)
+        raw = bytearray(first.read_bytes())
+        at = raw.index(b"Foo.lua") + 40
+        raw[at] ^= 0xFF
+        first.write_bytes(bytes(raw))
+        with self.assertRaises(Exception):
+            backup.restore(self.client, first.name)
+        self.assertEqual((sv / "Foo.lua").read_text(), "one" * 500)
+
     def test_rollback_and_history(self):
         from wowam import history
 
@@ -421,6 +445,9 @@ class ExtraTests(Base):
         if shutil.which("luac"):
             for name in ("Data.lua", "Init.lua"):
                 self.assertEqual(subprocess.run(["luac", "-p", str(folder / name)]).returncode, 0)
+        odd = ["x", {"_id": "abc", "version": "new"}, {"_id": ["abc"], "version": 9}, {"_id": "abc", "version": 9, "changelog": "x"}]
+        with mock.patch.object(auras.http, "get_json", return_value=odd), mock.patch.object(auras.http, "download", fake_download):
+            self.assertEqual(len(auras.sync(self.client)), 1)
         with mock.patch.object(auras.http, "get_json", return_value=[]):
             self.assertEqual(auras.sync(self.client), [])
         self.assertNotIn("abc", (folder / "Data.lua").read_text())
@@ -554,6 +581,26 @@ class RedirectTests(unittest.TestCase):
         self.assertEqual(same, {"authorization", "x-api-key", "accept"})
         with self.assertRaises(http.urllib.error.HTTPError):
             follow("http://api.example.com/file")
+
+
+class WagoKeyTests(unittest.TestCase):
+    def test_key_stays_with_wago(self):
+        client = mock.Mock(flavor="retail", label="Retail")
+        for link, kept in (
+            ("https://addons.wago.io/api/external/download/1", True),
+            ("https://evil.example/a.zip", False),
+            ("http://addons.wago.io/a.zip", False),
+            ("https://notwago.io/a.zip", False),
+        ):
+            reply = {"recent_release": {"stable": {"label": "1", "download_link": link}}}
+            with mock.patch.object(sources.http, "get_json", return_value=reply):
+                release = sources._wago_latest("x", client, {"wago_key": "secret"}, "stable")
+            self.assertEqual(bool(release.headers), kept, link)
+
+    def test_web_only(self):
+        for url in ("file:///etc/passwd", "ftp://example.com/a", "data:text/plain,hi"):
+            with self.assertRaises(sources.http.HttpError):
+                sources.http.get_bytes(url, 100)
 
 
 class AuraIdTests(unittest.TestCase):

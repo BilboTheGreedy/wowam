@@ -6,6 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -14,8 +17,8 @@ jobs:
         os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.13"
       - if: runner.os == 'Linux'
@@ -30,7 +33,7 @@ jobs:
       - if: runner.os == 'Windows'
         shell: pwsh
         run: if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
-      - run: pip install PySide6 pyinstaller certifi
+      - run: pip install --require-hashes -r packaging/requirements.txt
       - run: python -m unittest discover -s tests -v
         env:
           QT_QPA_PLATFORM: offscreen
@@ -39,7 +42,7 @@ jobs:
         env:
           CURSEFORGE_KEY: ${{ secrets.CURSEFORGE_KEY }}
       - run: python packaging/smoke.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: wowam-${{ runner.os }}
           path: |
@@ -55,7 +58,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           path: out
           merge-multiple: true

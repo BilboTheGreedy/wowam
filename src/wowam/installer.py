@@ -107,7 +107,7 @@ def _bad_name(name):
     return not name.strip(". ") or name.startswith(".") or any(c in name for c in '/\\:')
 
 
-def install_zip(zip_path, addons_dir):
+def install_zip(zip_path, addons_dir, taken=None):
     addons_dir.mkdir(parents=True, exist_ok=True)
     tmp = addons_dir / f".wowam-tmp-{os.getpid()}-{time.monotonic_ns()}"
     tmp.mkdir()
@@ -122,6 +122,10 @@ def install_zip(zip_path, addons_dir):
             raise InstallError("No addon was found in the archive.")
         if any(_bad_name(name) for name in located):
             raise InstallError("The archive contains an unsafe addon name.")
+        for name in sorted(located):
+            owner = (taken or {}).get(name.lower())
+            if owner:
+                raise InstallError(f"This also contains {name}, which belongs to {owner}. Remove {owner} first.")
         names = []
         for name, src in sorted(located.items()):
             dst = addons_dir / name

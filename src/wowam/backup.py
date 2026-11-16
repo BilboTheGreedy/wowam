@@ -12,9 +12,13 @@ def folder(client):
     return data_dir() / "backups" / client.id
 
 
+def _newest(path):
+    return sorted(path.glob("*.zip"), key=lambda f: (f.stat().st_mtime, f.name), reverse=True)
+
+
 def entries(client):
     try:
-        files = sorted(folder(client).glob("*.zip"), reverse=True)
+        files = _newest(folder(client))
     except OSError:
         return []
     return [{"name": f.name, "size": f.stat().st_size, "time": f.stat().st_mtime} for f in files]
@@ -46,7 +50,7 @@ def create(client, keep=7):
                     pass
     os.replace(tmp, target)
     if keep > 0:
-        for old in sorted(dest.glob("*.zip"), reverse=True)[keep:]:
+        for old in _newest(dest)[keep:]:
             old.unlink()
     return target
 
@@ -61,6 +65,8 @@ def restore(client, name):
             parts = [p for p in info.filename.replace("\\", "/").split("/") if p]
             if info.filename.startswith("/") or ".." in parts:
                 raise ValueError("unsafe path in backup")
+        if zf.testzip():
+            raise ValueError("the backup is damaged")
         create(client, keep=0)
         wtf.mkdir(parents=True, exist_ok=True)
         for child in wtf.iterdir():

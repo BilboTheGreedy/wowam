@@ -5,7 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, urlparse
 
 from . import http
 from .clients import flavor_of_version
@@ -357,9 +357,14 @@ def _wago_latest(ident, client, cfg, channel):
     authors = data.get("authors") or ""
     if isinstance(authors, list):
         authors = ", ".join(str(a) for a in authors)
+    url = str(release.get("download_link") or release.get("link") or "")
+    target = urlparse(url)
+    host = (target.hostname or "").lower()
+    if target.scheme != "https" or not (host == "wago.io" or host.endswith(".wago.io")):
+        headers = {}
     return Release(
         version=str(release.get("label", "")),
-        url=release.get("download_link") or release.get("link"),
+        url=url,
         name=data.get("display_name") or data.get("name") or "",
         author=authors,
         page=data.get("website_url", ""),

@@ -55,7 +55,19 @@ class Redirect(urllib.request.HTTPRedirectHandler):
         return out
 
 
-OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler(context=CONTEXT), Redirect)
+OPENER = urllib.request.OpenerDirector()
+for handler in (
+    urllib.request.ProxyHandler(),
+    urllib.request.UnknownHandler(),
+    urllib.request.HTTPHandler(),
+    urllib.request.HTTPSHandler(context=CONTEXT),
+    urllib.request.HTTPDefaultErrorHandler(),
+    Redirect(),
+    urllib.request.HTTPErrorProcessor(),
+):
+    OPENER.add_handler(handler)
+
+LIMIT = 64 << 20
 
 
 class HttpError(Exception):
@@ -71,6 +83,8 @@ def _cache_path(url, kind):
 
 
 def _request(url, headers=None, data=None, timeout=30):
+    if urllib.request.urlparse(str(url)).scheme not in ("http", "https"):
+        raise HttpError(0, "not a web address")
     req = urllib.request.Request(url, data=data, headers={"User-Agent": UA, **(headers or {})})
     try:
         return OPENER.open(req, timeout=timeout)
@@ -124,8 +138,10 @@ def get_json(url, headers=None, etag=False, max_age=0, timeout=30):
         headers["If-None-Match"] = meta_path.read_text().strip()
     try:
         with _request(url, headers, timeout=timeout) as resp:
-            body = resp.read()
+            body = resp.read(LIMIT + 1)
             tag = resp.headers.get("ETag", "")
+        if len(body) > LIMIT:
+            raise HttpError(0, f"{urllib.request.urlparse(url).netloc} sent too much data")
     except HttpError as e:
         if e.status == 304 or (etag and e.status in (403, 429) and body_path.exists()):
             try:

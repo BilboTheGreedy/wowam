@@ -408,8 +408,14 @@ class Manager:
                 old = self.state.addons.get(ref, {})
                 changed = bool(old) and not same_version(old.get("version", ""), release.version)
                 kept = self._keep_previous(ref, old) if changed else None
+                taken = {
+                    d.lower(): rec.get("name") or other
+                    for other, rec in self.state.addons.items()
+                    if other.lower() != ref.lower()
+                    for d in rec.get("dirs", [])
+                }
                 try:
-                    names = installer.install_zip(zip_path, self.client.addons_dir)
+                    names = installer.install_zip(zip_path, self.client.addons_dir, taken)
                 except installer.InstallError as e:
                     if kept:
                         kept.unlink(missing_ok=True)
@@ -419,15 +425,6 @@ class Manager:
                         kept.replace(self.rollback_file(ref))
                     except OSError:
                         kept = None
-                for other, rec in list(self.state.addons.items()):
-                    if other == ref:
-                        continue
-                    left = [d for d in rec.get("dirs", []) if d not in names]
-                    if len(left) != len(rec.get("dirs", [])):
-                        if left:
-                            rec["dirs"] = left
-                        else:
-                            del self.state.addons[other]
                 if old and not old.get("adopted"):
                     for d in old.get("dirs", []):
                         if d not in names:

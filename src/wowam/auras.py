@@ -33,8 +33,14 @@ def check(slugs):
         except http.HttpError:
             continue
         for entry in data if isinstance(data, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                version = int(entry.get("version") or 0)
+            except (TypeError, ValueError):
+                continue
             for key in (entry.get("slug"), entry.get("_id")):
-                if key in slugs and int(entry.get("version") or 0) > slugs[key]:
+                if isinstance(key, str) and key in slugs and version > slugs[key]:
                     out.append((key, entry))
                     break
     return out
@@ -72,7 +78,8 @@ def quote(text):
 def render(updates):
     lines = ["WowamCompanionData = {", "  slugs = {"]
     for key, entry, text in updates:
-        note = (entry.get("changelog") or {}).get("text", "")
+        log = entry.get("changelog")
+        note = log.get("text", "") if isinstance(log, dict) else ""
         lines += [
             f"    [ {quote(key)} ] = {{",
             f"      name = {quote(entry.get('name'))},",
